@@ -117,4 +117,12 @@ impl SystemMonitor {
         }
         map.into_values().collect()
     }
+
+    /// Return (cpu_usage, memory_usage) for a given PID if found
+    pub fn usage_for_pid(&self, pid_val: u32) -> Option<(f32, u64)> {
+        self.sys
+            .processes()
+            .get(&sysinfo::Pid::from_u32(pid_val))
+            .map(|p| (p.cpu_usage(), p.memory()))
+    }
 }
