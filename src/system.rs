@@ -39,18 +39,20 @@ impl SystemMonitor {
     fn do_refresh_cycle(&mut self) {
         self.sys.refresh_cpu_specifics(CpuRefreshKind::everything());
         self.sys.refresh_memory();
-        self.disks.refresh();
-        self.networks.refresh();
+        // require bool arg: false => do not remove unlisted
+        self.disks.refresh(false);
+        self.networks.refresh(false);
 
-        let proc_kind = ProcessRefreshKind::new()
-            .with_cpu()
-            .with_memory();
-        self.sys.refresh_processes_specifics(proc_kind);
+        self.sys.refresh_processes_specifics(
+            sysinfo::ProcessesToUpdate::All,
+            false,
+            ProcessRefreshKind::everything()
+        );
     }
 
     /// CPU usage in percentage (0-100).
     pub fn global_cpu_usage(&self) -> f32 {
-        self.sys.global_cpu_info().cpu_usage()
+        self.sys.global_cpu_usage()
     }
 
     /// (used_mem, free_mem, total_mem, avail_mem, swap_used, swap_total)
@@ -102,7 +104,7 @@ impl SystemMonitor {
 
         for proc_ in self.sys.processes().values() {
             let pid_val = proc_.pid().as_u32();
-            let proc_name = proc_.name().to_string();
+            let proc_name = proc_.name().to_string_lossy().into_owned();
 
             let entry = map.entry(proc_name.clone()).or_insert_with(|| CombinedProcess {
                 name: proc_name,

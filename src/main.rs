@@ -36,14 +36,14 @@ impl Default for RustDashboardApp {
 }
 
 impl eframe::App for RustDashboardApp {
-    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
     // Top panel for refresh rate & dashboard self usage
     egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
         ui.horizontal(|ui| {
             // Adjust refresh interval
             ui.label("Refresh Interval (s):");
             let refresh_options = [1, 2, 5, 10, 15, 30];
-            egui::ComboBox::from_id_source("refresh_combo_box")
+            egui::ComboBox::from_id_salt("refresh_combo_box")
                 .selected_text(format!("{} s", self.refresh_interval_seconds))
                 .show_ui(ui, |ui| {
                     for &val in &refresh_options {
@@ -76,7 +76,7 @@ impl eframe::App for RustDashboardApp {
         }
     }
 
-        frame.set_window_title("Rust Dashboard (egui)");
+
 
         CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
@@ -165,6 +165,6 @@ fn main() {
     let _ = eframe::run_native(
         "Rust Dashboard",
         native_options,
-        Box::new(|_cc| Box::new(app)),
+        Box::new(|_cc| Ok(Box::new(app))),
     );
 }

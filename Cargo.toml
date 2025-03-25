@@ -1,11 +1,8 @@
 [package]
 name = "Rust-Dashboard"
-version = "1.0.0"
-edition = "2021"
+version = "1.1.0"
+edition = "2024"
 
 [dependencies]
-sysinfo = "0.30"
-
-# We include eframe (which includes egui) with default features
-# If you need a different backend (e.g. glow), you can tweak features below.
-eframe = { version = "0.21", features = ["wgpu"] }
+sysinfo = "0.33.1"
+eframe = { version = "0.31.1", features = ["wgpu"] }
