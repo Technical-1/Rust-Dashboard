@@ -4,13 +4,12 @@ use crate::system::SystemMonitor;
 use eframe::egui::{self, CentralPanel};
 use std::sync::{Arc, Mutex};
 use std::thread;
-
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 pub struct RustDashboardApp {
     monitor: Arc<Mutex<SystemMonitor>>,
-    last_refresh: Instant,
-    refresh_interval: std::time::Duration,
+    // Removed last_refresh and static PROCESS_REFRESH_COUNTER which were unused
+    refresh_interval: Duration,
     cpu_usage: f32,
     memory_info: (u64, u64, u64, u64, u64, u64),
     disk_info: Vec<(String, String, String, u64, u64, u64)>,
@@ -24,8 +23,7 @@ impl Default for RustDashboardApp {
     fn default() -> Self {
         Self {
             monitor: Arc::new(Mutex::new(SystemMonitor::new())),
-            last_refresh: Instant::now(),
-            refresh_interval: std::time::Duration::from_secs(5),
+            refresh_interval: Duration::from_secs(5),
             cpu_usage: 0.0,
             memory_info: (0, 0, 0, 0, 0, 0),
             disk_info: Vec::new(),
@@ -39,52 +37,41 @@ impl Default for RustDashboardApp {
 
 impl eframe::App for RustDashboardApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-    // Top panel for refresh rate & dashboard self usage
-    egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-        ui.horizontal(|ui| {
-            // Adjust refresh interval
-            ui.label("Refresh Interval (s):");
-            let refresh_options = [1, 2, 5, 10, 15, 30];
-            egui::ComboBox::from_id_salt("refresh_combo_box")
-                .selected_text(format!("{} s", self.refresh_interval_seconds))
-                .show_ui(ui, |ui| {
-                    for &val in &refresh_options {
-                        ui.selectable_value(&mut self.refresh_interval_seconds, val, format!("{} s", val));
-                    }
-                });
-            self.refresh_interval = std::time::Duration::from_secs(self.refresh_interval_seconds as u64);
+        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Refresh Interval (s):");
+                let refresh_options = [1, 2, 5, 10, 15, 30];
+                egui::ComboBox::from_id_salt("refresh_combo_box")
+                    .selected_text(format!("{} s", self.refresh_interval_seconds))
+                    .show_ui(ui, |ui| {
+                        for &val in &refresh_options {
+                            ui.selectable_value(&mut self.refresh_interval_seconds, val, format!("{} s", val));
+                        }
+                    });
+                self.refresh_interval = Duration::from_secs(self.refresh_interval_seconds as u64);
 
-            // Show Dashboard's self CPU/memory usage
-            let cpu = self.self_usage.0;
-            let mem_mib = self.self_usage.1 as f64 / 1024.0 / 1024.0;
-            ui.label(format!("Dash CPU: {:.2}%", cpu));
-            ui.label(format!("Dash Mem: {:.2} MiB", mem_mib));
+                let cpu = self.self_usage.0;
+                let mem_mib = self.self_usage.1 as f64 / 1024.0 / 1024.0;
+                ui.label(format!("Dash CPU: {:.2}%", cpu));
+                ui.label(format!("Dash Mem: {:.2} MiB", mem_mib));
+            });
         });
-    });
 
-    // Refresh data if it's been at least refresh_interval since last refresh
-    static mut PROCESS_REFRESH_COUNTER: usize = 0;
+        {
+            // lock monitor, update fields
+            let mon = self.monitor.lock().unwrap();
+            self.cpu_usage = mon.global_cpu_usage();
+            self.memory_info = mon.memory_info();
+            self.disk_info = mon.disk_info();
+            self.network_info = mon.network_info();
+            self.processes = mon.combined_process_list();
 
-    {
-        // Grab monitor data lock
-        let mon = self.monitor.lock().unwrap();
-
-        // Update local fields from background-refreshed data
-        self.cpu_usage = mon.global_cpu_usage();
-        self.memory_info = mon.memory_info();
-        self.disk_info = mon.disk_info();
-        self.network_info = mon.network_info();
-        self.processes = mon.combined_process_list();
-
-        // Self usage
-        if let Some((cpu, mem)) = mon.usage_for_pid(std::process::id()) {
-            self.self_usage = (cpu, mem);
+            if let Some((cpu, mem)) = mon.usage_for_pid(std::process::id()) {
+                self.self_usage = (cpu, mem);
+            }
         }
-    }
-    // Request a repaint so the UI updates even if not focused
-    ctx.request_repaint();
 
-
+        ctx.request_repaint();
 
         CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
@@ -102,7 +89,7 @@ impl eframe::App for RustDashboardApp {
                     let avail_gb = avail_mem as f64 / 1024.0 / 1024.0 / 1024.0;
                     let swap_used_gb = swap_used as f64 / 1024.0 / 1024.0 / 1024.0;
                     let swap_total_gb = swap_total as f64 / 1024.0 / 1024.0 / 1024.0;
-                
+
                     ui.label(format!("Used: {:.2} GiB", used_gb));
                     ui.label(format!("Free: {:.2} GiB", free_gb));
                     ui.label(format!("Total: {:.2} GiB", total_gb));
@@ -160,15 +147,13 @@ impl eframe::App for RustDashboardApp {
                 });
             });
         });
-        }
     }
+}
 
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
-    // Create the app
     let app = RustDashboardApp::default();
 
-    // Clone the Arc<Mutex<SystemMonitor>> so we can refresh in background
     let monitor_clone = app.monitor.clone();
     thread::spawn(move || {
         loop {
@@ -176,7 +161,6 @@ fn main() {
                 let mut locked_mon = monitor_clone.lock().unwrap();
                 locked_mon.refresh();
             }
-            // Sleep here to control refresh frequency in the background
             thread::sleep(Duration::from_secs(5));
         }
     });

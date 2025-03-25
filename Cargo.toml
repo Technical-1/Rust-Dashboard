@@ -6,3 +6,11 @@ edition = "2024"
 [dependencies]
 sysinfo = "0.33.1"
 eframe = { version = "0.31.1", features = ["wgpu"] }
+
+[lib]
+name = "rust_dashboard_lib"
+path = "src/lib.rs"
+
+[[bin]]
+name = "Rust-Dashboard"
+path = "src/main.rs"
