@@ -5,9 +5,10 @@ use sysinfo::{
 };
 
 pub struct SystemMonitor {
-    sys: System,
-    disks: Disks,
-    networks: Networks,
+    pub sys: System,
+    pub disks: Disks,
+    pub networks: Networks,
+    pub last_disk_refresh: std::time::Instant,
 }
 
 #[derive(Debug, Clone)]
@@ -26,7 +27,12 @@ impl SystemMonitor {
 
         let disks = Disks::new_with_refreshed_list();
         let networks = Networks::new_with_refreshed_list();
-        Self { sys, disks, networks }
+        Self {
+            sys,
+            disks,
+            networks,
+            last_disk_refresh: std::time::Instant::now()
+        }
     }
 
     /// Refresh the data with two calls and a short pause, to normalize CPU usage
@@ -40,7 +46,10 @@ impl SystemMonitor {
         self.sys.refresh_cpu_specifics(CpuRefreshKind::everything());
         self.sys.refresh_memory();
         // require bool arg: false => do not remove unlisted
-        self.disks.refresh(false);
+        if self.last_disk_refresh.elapsed() >= std::time::Duration::from_secs(60) {
+            self.disks.refresh(false);
+            self.last_disk_refresh = std::time::Instant::now();
+        }
         self.networks.refresh(false);
 
         self.sys.refresh_processes_specifics(

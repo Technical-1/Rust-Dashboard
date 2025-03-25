@@ -2,11 +2,13 @@ mod system;
 
 use crate::system::SystemMonitor;
 use eframe::egui::{self, CentralPanel};
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 use std::time::{Duration, Instant};
 
 pub struct RustDashboardApp {
-    monitor: SystemMonitor,
+    monitor: Arc<Mutex<SystemMonitor>>,
     last_refresh: Instant,
     refresh_interval: std::time::Duration,
     cpu_usage: f32,
@@ -21,7 +23,7 @@ pub struct RustDashboardApp {
 impl Default for RustDashboardApp {
     fn default() -> Self {
         Self {
-            monitor: SystemMonitor::new(),
+            monitor: Arc::new(Mutex::new(SystemMonitor::new())),
             last_refresh: Instant::now(),
             refresh_interval: std::time::Duration::from_secs(5),
             cpu_usage: 0.0,
@@ -61,20 +63,26 @@ impl eframe::App for RustDashboardApp {
     });
 
     // Refresh data if it's been at least refresh_interval since last refresh
-    if self.last_refresh.elapsed() >= self.refresh_interval {
-        self.monitor.refresh();
-        self.cpu_usage = self.monitor.global_cpu_usage();
-        self.memory_info = self.monitor.memory_info();
-        self.disk_info = self.monitor.disk_info();
-        self.network_info = self.monitor.network_info();
-        self.processes = self.monitor.combined_process_list();
-        self.last_refresh = Instant::now();
+    static mut PROCESS_REFRESH_COUNTER: usize = 0;
 
-        // Grab the current process usage
-        if let Some((cpu, mem)) = self.monitor.usage_for_pid(std::process::id()) {
+    {
+        // Grab monitor data lock
+        let mon = self.monitor.lock().unwrap();
+
+        // Update local fields from background-refreshed data
+        self.cpu_usage = mon.global_cpu_usage();
+        self.memory_info = mon.memory_info();
+        self.disk_info = mon.disk_info();
+        self.network_info = mon.network_info();
+        self.processes = mon.combined_process_list();
+
+        // Self usage
+        if let Some((cpu, mem)) = mon.usage_for_pid(std::process::id()) {
             self.self_usage = (cpu, mem);
         }
     }
+    // Request a repaint so the UI updates even if not focused
+    ctx.request_repaint();
 
 
 
@@ -152,15 +160,27 @@ impl eframe::App for RustDashboardApp {
                 });
             });
         });
-
-        // Request a repaint to continuously update
-        ctx.request_repaint_after(Duration::from_millis(500));
+        }
     }
-}
 
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
+    // Create the app
     let app = RustDashboardApp::default();
+
+    // Clone the Arc<Mutex<SystemMonitor>> so we can refresh in background
+    let monitor_clone = app.monitor.clone();
+    thread::spawn(move || {
+        loop {
+            {
+                let mut locked_mon = monitor_clone.lock().unwrap();
+                locked_mon.refresh();
+            }
+            // Sleep here to control refresh frequency in the background
+            thread::sleep(Duration::from_secs(5));
+        }
+    });
+
     let native_options = eframe::NativeOptions::default();
     let _ = eframe::run_native(
         "Rust Dashboard",
