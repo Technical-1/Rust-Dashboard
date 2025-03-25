@@ -1,237 +1,133 @@
-use std::{thread, time::Duration, collections::HashMap};
-use sysinfo::{
-    CpuRefreshKind,
-    Disks,
-    Networks,
-    ProcessRefreshKind,
-    ProcessesToUpdate,
-    System,
-};
+mod system;
 
-pub struct SystemMonitor {
-    sys: System,
-    disks: Disks,
-    networks: Networks,
+use crate::system::SystemMonitor;
+use eframe::egui;
+
+use std::time::{Duration, Instant};
+
+pub struct RustDashboardApp {
+    monitor: SystemMonitor,
+    last_refresh: Instant,
+    refresh_interval: std::time::Duration,
+    cpu_usage: f32,
+    memory_info: (u64, u64, u64, u64, u64, u64),
+    disk_info: Vec<(String, String, String, u64, u64, u64)>,
+    network_info: Vec<(String, u64, u64)>,
+    processes: Vec<system::CombinedProcess>,
 }
 
-#[derive(Debug, Clone)]
-pub struct CombinedProcess {
-    pub name: String,
-    pub cpu_usage: f32,
-    pub memory_usage: u64,
-    pub pids: Vec<u32>, 
+impl Default for RustDashboardApp {
+    fn default() -> Self {
+        Self {
+            monitor: SystemMonitor::new(),
+            last_refresh: Instant::now(),
+            refresh_interval: std::time::Duration::from_secs(5),
+            cpu_usage: 0.0,
+            memory_info: (0, 0, 0, 0, 0, 0),
+            disk_info: Vec::new(),
+            network_info: Vec::new(),
+            processes: Vec::new(),
+        }
+    }
 }
 
-impl SystemMonitor {
-    pub fn new() -> Self {
-        let mut sys = System::new_all();
-        sys.refresh_all();
-
-        let disks = Disks::new_with_refreshed_list();
-        let networks = Networks::new_with_refreshed_list();
-        Self { sys, disks, networks }
-    }
-
-    /// Refresh the data with 2 calls and a short pause, to normalize CPU usage
-    pub fn refresh(&mut self) {
-        self.do_refresh_cycle();
-        thread::sleep(Duration::from_millis(500));
-        self.do_refresh_cycle();
-    }
-
-    fn do_refresh_cycle(&mut self) {
-        // CPU usage & frequency
-        self.sys.refresh_cpu_specifics(CpuRefreshKind::everything());
-        // Memory
-        self.sys.refresh_memory();
-        // Disks
-        self.disks.refresh(false);
-        // Networks
-        self.networks.refresh(false);
-
-        // Processes
-        let proc_kind = ProcessRefreshKind::nothing()
-            .with_cpu()
-            .with_memory();
-        self.sys.refresh_processes_specifics(ProcessesToUpdate::All, true, proc_kind);
-    }
-
-    /// CPU usage in percentage (0-100).
-    pub fn global_cpu_usage(&self) -> f32 {
-        self.sys.global_cpu_usage()
-    }
-
-    /// Memory usage in bytes: used, free, total, available, swap used/total
-    pub fn memory_info(&self) -> (u64, u64, u64, u64, u64, u64) {
-        let used = self.sys.used_memory();
-        let free = self.sys.free_memory();
-        let total = self.sys.total_memory();
-        let avail = self.sys.available_memory();
-        let swap_used = self.sys.used_swap();
-        let swap_total = self.sys.total_swap();
-        (used, free, total, avail, swap_used, swap_total)
-    }
-
-    /// Gather disk usage info (mount, file system, used/available/total).
-    pub fn disk_info(&self) -> Vec<(String, String, String, u64, u64, u64)> {
-        // (name, fs, mount, used, available, total)
-        let mut info = Vec::new();
-        for disk in self.disks.list() {
-            let total = disk.total_space();
-            let avail = disk.available_space();
-            let used = total.saturating_sub(avail);
-            info.push((
-                disk.name().to_string_lossy().into_owned(),
-                disk.file_system().to_string_lossy().into_owned(),
-                disk.mount_point().to_string_lossy().into_owned(),
-                used,
-                avail,
-                total,
-            ));
+impl eframe::App for RustDashboardApp {
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        // Refresh data if it's been at least refresh_interval since last refresh
+        if self.last_refresh.elapsed() >= self.refresh_interval {
+            self.monitor.refresh();
+            self.cpu_usage = self.monitor.global_cpu_usage();
+            self.memory_info = self.monitor.memory_info();
+            self.disk_info = self.monitor.disk_info();
+            self.network_info = self.monitor.network_info();
+            self.processes = self.monitor.combined_process_list();
+            self.last_refresh = Instant::now();
         }
-        info
-    }
 
-    /// Return total bytes received/transmitted for each interface.
-    pub fn network_info(&self) -> Vec<(String, u64, u64)> {
-        // (interface name, total rx, total tx)
-        let mut out = Vec::new();
-        for (iface, data) in self.networks.iter() {
-            out.push((iface.clone(), data.total_received(), data.total_transmitted()));
-        }
-        out
-    }
+        frame.set_window_title("Rust Dashboard (egui)");
 
-    /// Combine all processes by name. Each unique process name has sums of CPU/mem usage.
-    /// Returns a vector of CombinedProcess, one entry per name.
-    pub fn combined_process_list(&self) -> Vec<CombinedProcess> {
-        let mut map: HashMap<String, CombinedProcess> = HashMap::new();
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.heading("System Stats");
 
-        for proc_ in self.sys.processes().values() {
-            let pid_val = proc_.pid().as_u32();
-            let proc_name = proc_.name().to_string_lossy().into_owned();
+            ui.separator();
+            ui.label(format!("CPU Usage: {:.2}%", self.cpu_usage));
 
-            let entry = map.entry(proc_name.clone()).or_insert_with(|| CombinedProcess {
-                name: proc_name,
-                cpu_usage: 0.0,
-                memory_usage: 0,
-                pids: Vec::new(),
+            let (used_mem, free_mem, total_mem, avail_mem, swap_used, swap_total) = self.memory_info;
+            ui.separator();
+            ui.collapsing("Memory", |ui| {
+                let used_gb = used_mem as f64 / 1024.0 / 1024.0 / 1024.0;
+                let free_gb = free_mem as f64 / 1024.0 / 1024.0 / 1024.0;
+                let total_gb = total_mem as f64 / 1024.0 / 1024.0 / 1024.0;
+                let avail_gb = avail_mem as f64 / 1024.0 / 1024.0 / 1024.0;
+                let swap_used_gb = swap_used as f64 / 1024.0 / 1024.0 / 1024.0;
+                let swap_total_gb = swap_total as f64 / 1024.0 / 1024.0 / 1024.0;
+            
+                ui.label(format!("Used: {:.2} GiB", used_gb));
+                ui.label(format!("Free: {:.2} GiB", free_gb));
+                ui.label(format!("Total: {:.2} GiB", total_gb));
+                ui.label(format!("Available: {:.2} GiB", avail_gb));
+                ui.label(format!("Swap Used: {:.2} GiB", swap_used_gb));
+                ui.label(format!("Swap Total: {:.2} GiB", swap_total_gb));
             });
 
-            entry.cpu_usage += proc_.cpu_usage();
-            entry.memory_usage += proc_.memory();
-            entry.pids.push(pid_val);
-        }
+            ui.separator();
+            ui.collapsing("Disks", |ui| {
+                for (name, fs, mount, used, avail, total) in &self.disk_info {
+                    ui.label(format!(
+                        "Name: {}, FS: {}, Mount: {}, Used: {}, Avail: {}, Total: {}",
+                        name, fs, mount, used, avail, total
+                    ));
+                }
+            });
 
-        map.into_values().collect()
-    }
+            ui.separator();
+            ui.collapsing("Networks", |ui| {
+                for (iface, rx, tx) in &self.network_info {
+                    ui.label(format!("Interface: {}, RX: {}, TX: {}", iface, rx, tx));
+                }
+            });
 
-    /// Return top `count` combined processes by CPU
-    pub fn top_by_cpu(&self, count: usize) -> Vec<CombinedProcess> {
-        let mut procs = self.combined_process_list();
-        // Sort descending by CPU usage
-        procs.sort_by(|a, b| b.cpu_usage.partial_cmp(&a.cpu_usage).unwrap());
-        procs.truncate(count);
-        procs
-    }
+            ui.separator();
+            ui.collapsing("Processes", |ui| {
+                let mut processes_by_cpu = self.processes.clone();
+                processes_by_cpu.sort_by(|a, b| b.cpu_usage.partial_cmp(&a.cpu_usage).unwrap_or(std::cmp::Ordering::Equal));
+                processes_by_cpu.truncate(5);
 
-    /// Return top `count` combined processes by memory
-    pub fn top_by_memory(&self, count: usize) -> Vec<CombinedProcess> {
-        let mut procs = self.combined_process_list();
-        // Sort descending by memory usage
-        procs.sort_by_key(|p| std::cmp::Reverse(p.memory_usage));
-        procs.truncate(count);
-        procs
+                ui.label("Top 5 CPU Usage:");
+                for proc_ in &processes_by_cpu {
+                    ui.label(format!(
+                        "Name: {}, CPU: {:.2}%, Memory: {}, PIDs: {:?}",
+                        proc_.name, proc_.cpu_usage, proc_.memory_usage, proc_.pids
+                    ));
+                }
+
+                ui.separator();
+                let mut processes_by_mem = self.processes.clone();
+                processes_by_mem.sort_by(|a, b| b.memory_usage.cmp(&a.memory_usage));
+                processes_by_mem.truncate(5);
+
+                ui.label("Top 5 Memory Usage:");
+                for proc_ in &processes_by_mem {
+                    ui.label(format!(
+                        "Name: {}, CPU: {:.2}%, Memory: {}, PIDs: {:?}",
+                        proc_.name, proc_.cpu_usage, proc_.memory_usage, proc_.pids
+                    ));
+                }
+            });
+        });
+
+        // Request a repaint to continuously update
+        ctx.request_repaint_after(Duration::from_millis(500));
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn main() {
-    let mut monitor = SystemMonitor::new();
-    monitor.refresh();
-
-    // CPU Usage
-    let cpu_usage = monitor.global_cpu_usage();
-    // Memory breakdown
-    let (used_mem, free_mem, total_mem, avail_mem, swap_used, swap_total) = monitor.memory_info();
-    // Disks
-    let disk_details = monitor.disk_info();
-    // Network
-    let net_details = monitor.network_info();
-
-    // Combined Processes (top by CPU)
-    let top_cpu = monitor.top_by_cpu(5);
-    // Combined Processes (top by Memory)
-    let top_mem = monitor.top_by_memory(5);
-
-    println!("╔══════════════════════════════════════════╗");
-    println!("║        RUST SYSTEM DASHBOARD v1.0        ║");
-    println!("╚══════════════════════════════════════════╝\n");
-
-    println!("== CPU ==");
-    println!("Global CPU Usage: {:.2}%", cpu_usage);
-    println!();
-
-    println!("== MEMORY ==");
-    let used_mb = used_mem / 1_048_576;
-    let free_mb = free_mem / 1_048_576;
-    let total_mb = total_mem / 1_048_576;
-    let avail_mb = avail_mem / 1_048_576;
-    let swap_used_mb = swap_used / 1_048_576;
-    let swap_total_mb = swap_total / 1_048_576;
-
-    println!("Used:        {} MB", used_mb);
-    println!("Free:        {} MB", free_mb);
-    println!("Available:   {} MB", avail_mb);
-    println!("Total:       {} MB", total_mb);
-    println!("Swap Used:   {} MB", swap_used_mb);
-    println!("Swap Total:  {} MB", swap_total_mb);
-    println!();
-
-    // Disks
-    println!("== DISKS ==");
-    for (name, fs, mount, used, avail, total) in disk_details {
-        let used_gb = used as f64 / 1_073_741_824.0;
-        let avail_gb = avail as f64 / 1_073_741_824.0;
-        let total_gb = total as f64 / 1_073_741_824.0;
-        println!(
-            "{:>12} ({:>5}) at {:<15} => used {:.2} GiB / total {:.2} GiB (free {:.2} GiB)",
-            name, fs, mount, used_gb, total_gb, avail_gb
-        );
-    }
-    println!();
-
-    // Network
-    println!("== NETWORK (total bytes so far) ==");
-    for (iface, rx, tx) in net_details {
-        println!("Interface: {:<10}  RX: {:>12} bytes, TX: {:>12} bytes", iface, rx, tx);
-    }
-    println!();
-
-    // Top Combined Processes by CPU
-    println!("== TOP 5 PROCS (by CPU, COMBINED) ==");
-    println!(" CPU%   MEM (bytes)  NAME                     (PIDs...)");
-    for proc_group in top_cpu {
-        println!(
-            "{:>5.1}%  {:>12}   {:<24}  {:?}",
-            proc_group.cpu_usage,
-            proc_group.memory_usage,
-            proc_group.name,
-            proc_group.pids
-        );
-    }
-    println!();
-
-    // Top Combined Processes by Memory
-    println!("== TOP 5 PROCS (by MEMORY, COMBINED) ==");
-    println!(" MEM (bytes)   CPU%   NAME                    (PIDs...)");
-    for proc_group in top_mem {
-        println!(
-            "{:>12}  {:>5.1}   {:<24}  {:?}",
-            proc_group.memory_usage,
-            proc_group.cpu_usage,
-            proc_group.name,
-            proc_group.pids
-        );
-    }
-    println!("\nDone.\n");
+    let app = RustDashboardApp::default();
+    let native_options = eframe::NativeOptions::default();
+    let _ = eframe::run_native(
+        "Rust Dashboard",
+        native_options,
+        Box::new(|_cc| Box::new(app)),
+    );
 }
