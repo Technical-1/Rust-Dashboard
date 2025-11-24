@@ -1,11 +1,50 @@
 [package]
 name = "Rust-Dashboard"
 version = "1.1.0"
-edition = "2024"
+edition = "2021"
+authors = ["Your Name <your.email@example.com>"]
+description = "A high-performance system monitoring dashboard built with Rust and egui"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/yourusername/rust-dashboard"
+readme = "README.md"
+keywords = ["dashboard", "system-monitor", "performance", "egui"]
+categories = ["gui", "visualization"]
+
+# Release profile optimizations
+[profile.release]
+opt-level = 3        # Maximum optimization
+lto = "fat"          # Full link-time optimization across all crates
+codegen-units = 1    # Single codegen unit for best optimization
+strip = true         # Strip symbols from binary
+panic = "abort"      # Smaller binaries by not unwinding on panic
+
+# Dev profile - faster compile times for development
+[profile.dev]
+opt-level = 1        # Some optimization for better dev experience
 
 [dependencies]
 sysinfo = "0.33.1"
-eframe = { version = "0.31.1", features = ["wgpu"] }
+eframe = { version = "0.31.1", default-features = false, features = ["wgpu", "default_fonts"] }
+egui_extras = { version = "0.31.1", features = ["all_loaders"] }
+log = "0.4"
+env_logger = "0.11"
+thiserror = "1.0"
+egui_plot = "0.31"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+csv = "1.3"
+toml = "0.8"
+dirs = "5.0"
+
+# Platform-specific dependencies
+[target.'cfg(windows)'.dependencies]
+# Windows-specific optimization: use native windows features
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# macOS-specific optimization
+
+[target.'cfg(unix)'.dependencies]
+# Unix/Linux-specific optimization
 
 [lib]
 name = "rust_dashboard_lib"
@@ -14,3 +53,7 @@ path = "src/lib.rs"
 [[bin]]
 name = "Rust-Dashboard"
 path = "src/main.rs"
+
+[[example]]
+name = "basic_usage"
+path = "examples/basic_usage.rs"
