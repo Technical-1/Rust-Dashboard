@@ -8,8 +8,8 @@ use egui_extras::{Column, TableBuilder};
 use egui_plot::{Line, Plot, PlotPoints};
 use std::collections::VecDeque;
 use std::sync::{
-    Arc, Mutex,
     atomic::{AtomicU32, Ordering},
+    Arc, Mutex,
 };
 use std::thread;
 use std::time::{Duration, Instant};
@@ -200,14 +200,14 @@ impl RustDashboardApp {
 
         // Write header
         if wtr
-            .write_record(&["Type", "Name", "CPU Usage %", "Memory MB", "PIDs"])
+            .write_record(["Type", "Name", "CPU Usage %", "Memory MB", "PIDs"])
             .is_ok()
         {
             // Write system info
-            let _ = wtr.write_record(&["System", "CPU", &format!("{:.2}", self.cpu_usage), "", ""]);
+            let _ = wtr.write_record(["System", "CPU", &format!("{:.2}", self.cpu_usage), "", ""]);
 
             let (used_mem, _, _total_mem, _, _, _) = self.memory_info;
-            let _ = wtr.write_record(&[
+            let _ = wtr.write_record([
                 "System",
                 "Memory",
                 "",
@@ -217,7 +217,7 @@ impl RustDashboardApp {
 
             // Write processes
             for proc in &self.processes {
-                let _ = wtr.write_record(&[
+                let _ = wtr.write_record([
                     "Process",
                     &proc.name,
                     &format!("{:.2}", proc.cpu_usage),
@@ -694,7 +694,7 @@ impl eframe::App for RustDashboardApp {
                         .body(|mut body| {
                             for &idx in &sorted_indices {
                                 let proc_ = filtered_processes[idx];
-                                let process_key = format!("{}", proc_.name);
+                                let process_key = proc_.name.to_string();
                                 let is_expanded = self.expanded_processes.contains(&process_key);
 
                                 body.row(35.0, |mut row| {

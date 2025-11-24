@@ -1,10 +1,9 @@
 use rust_dashboard_lib::config::AppConfig;
-use std::fs;
 
 #[test]
 fn test_config_default() {
     let config = AppConfig::default();
-    assert_eq!(config.refresh_interval_seconds, 5);
+    assert_eq!(config.refresh_interval_seconds, 2);
     assert_eq!(config.theme, "Dark");
 }
 

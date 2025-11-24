@@ -7,14 +7,12 @@ fn test_csv_export_format() {
     let mut wtr = Writer::from_writer(vec![]);
 
     // Write test data
-    assert!(
-        wtr.write_record(&["Type", "Name", "CPU Usage %", "Memory MB", "PIDs"])
-            .is_ok()
-    );
-    assert!(
-        wtr.write_record(&["Process", "test", "10.5", "100", "1234"])
-            .is_ok()
-    );
+    assert!(wtr
+        .write_record(&["Type", "Name", "CPU Usage %", "Memory MB", "PIDs"])
+        .is_ok());
+    assert!(wtr
+        .write_record(&["Process", "test", "10.5", "100", "1234"])
+        .is_ok());
 
     let data = wtr.into_inner().unwrap();
     let csv_str = String::from_utf8(data).unwrap();

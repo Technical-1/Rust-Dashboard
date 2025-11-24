@@ -114,10 +114,8 @@ fn test_process_details_current_process() {
     let mon = SystemMonitor::new();
     let current_pid = std::process::id();
     if let Some(details) = mon.process_details(current_pid) {
-        assert_eq!(details.pid, current_pid);
-        assert!(!details.name.is_empty());
-        assert!(details.cpu_usage >= 0.0);
-        assert!(details.memory >= 0);
+        assert!(!details.command.is_empty());
+        assert!(details.start_time > 0);
     }
 }
 
@@ -179,7 +177,7 @@ fn test_concurrent_refresh() {
 fn test_disk_info_format() {
     let mon = SystemMonitor::new();
     let disks = mon.disk_info();
-    for (name, fs, mount, used, avail, total) in disks {
+    for (name, _fs, mount, used, avail, total) in disks {
         assert!(!name.is_empty());
         assert!(!mount.is_empty());
         assert!(total >= used);

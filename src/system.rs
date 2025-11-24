@@ -28,6 +28,12 @@ pub struct CombinedProcess {
     pub pids: Vec<u32>,
 }
 
+impl Default for SystemMonitor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SystemMonitor {
     /// Create a new SystemMonitor and perform initial refresh.
     ///
@@ -43,13 +49,16 @@ impl SystemMonitor {
 
         let disks = Disks::new_with_refreshed_list();
         let networks = Networks::new_with_refreshed_list();
-        Self {
+        let mut monitor = Self {
             sys,
             disks,
             networks,
             last_disk_refresh: std::time::Instant::now(),
             cached_processes: Vec::new(),
-        }
+        };
+        // Populate the cache on initialization
+        monitor.cached_processes = monitor.compute_combined_process_list();
+        monitor
     }
 
     /// Refresh all system data.
@@ -282,7 +291,7 @@ impl SystemMonitor {
     /// let monitor = SystemMonitor::new();
     /// let current_pid = std::process::id();
     /// if let Some(details) = monitor.process_details(current_pid) {
-    ///     println!("Process: {}, Command: {}", details.name, details.command);
+    ///     println!("Command: {}", details.command);
     /// }
     /// ```
     pub fn process_details(&self, pid_val: u32) -> Option<ProcessDetails> {
