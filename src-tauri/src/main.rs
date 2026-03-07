@@ -402,29 +402,25 @@ fn main() {
 
                     if !paused.load(Ordering::Relaxed) {
                         let snapshot = {
-                            let mut mon = match monitor.lock() {
-                                Ok(m) => m,
-                                Err(e) => {
-                                    log::error!("Failed to lock monitor: {}", e);
-                                    std::thread::sleep(std::time::Duration::from_secs(
-                                        interval_secs as u64,
-                                    ));
-                                    continue;
-                                }
-                            };
+                            let mut mon = monitor.lock().unwrap_or_else(|e| {
+                                log::warn!("Monitor mutex was poisoned, recovering: {}", e);
+                                e.into_inner()
+                            });
                             mon.refresh();
                             build_snapshot(&mon)
                         };
 
                         // Update history
                         let elapsed = history_start.elapsed().as_secs_f64();
-                        if let Ok(mut hist) = cpu_history.lock() {
+                        {
+                            let mut hist = cpu_history.lock().unwrap_or_else(|e| e.into_inner());
                             hist.push_back((elapsed, snapshot.cpu_usage));
                             while hist.len() > HISTORY_CAPACITY {
                                 hist.pop_front();
                             }
                         }
-                        if let Ok(mut hist) = memory_history.lock() {
+                        {
+                            let mut hist = memory_history.lock().unwrap_or_else(|e| e.into_inner());
                             let used_gb = snapshot.memory.used as f64 / 1024.0 / 1024.0 / 1024.0;
                             hist.push_back((elapsed, used_gb));
                             while hist.len() > HISTORY_CAPACITY {
