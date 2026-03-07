@@ -1,13 +1,17 @@
+[workspace]
+members = [".", "src-tauri"]
+resolver = "2"
+
 [package]
-name = "Rust-Dashboard"
-version = "1.1.0"
+name = "rust_dashboard_lib"
+version = "2.0.0"
 edition = "2021"
 authors = ["Your Name <your.email@example.com>"]
-description = "A high-performance system monitoring dashboard built with Rust and egui"
+description = "A high-performance system monitoring dashboard built with Rust and Tauri"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/yourusername/rust-dashboard"
 readme = "README.md"
-keywords = ["dashboard", "system-monitor", "performance", "egui"]
+keywords = ["dashboard", "system-monitor", "performance", "tauri"]
 categories = ["gui", "visualization"]
 
 # Release profile optimizations
@@ -24,12 +28,9 @@ opt-level = 1        # Some optimization for better dev experience
 
 [dependencies]
 sysinfo = "0.33.1"
-eframe = { version = "0.31.1", default-features = false, features = ["wgpu", "default_fonts"] }
-egui_extras = { version = "0.31.1", features = ["all_loaders"] }
 log = "0.4"
 env_logger = "0.11"
 thiserror = "1.0"
-egui_plot = "0.31"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 csv = "1.3"
@@ -49,10 +50,6 @@ dirs = "5.0"
 [lib]
 name = "rust_dashboard_lib"
 path = "src/lib.rs"
-
-[[bin]]
-name = "Rust-Dashboard"
-path = "src/main.rs"
 
 [[example]]
 name = "basic_usage"

@@ -75,7 +75,7 @@ fn main() {
 
     // Get top 5 processes by CPU usage
     println!("\nTop 5 Processes by CPU Usage:");
-    let mut processes = monitor.combined_process_list();
+    let mut processes = monitor.combined_process_list().to_vec();
     processes.sort_by(|a, b| {
         b.cpu_usage
             .partial_cmp(&a.cpu_usage)

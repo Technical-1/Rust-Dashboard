@@ -10,13 +10,15 @@ pub struct SystemMonitor {
     pub disks: Disks,
     pub networks: Networks,
     pub last_disk_refresh: std::time::Instant,
+    pub last_network_refresh: std::time::Instant,
+    pub last_network_snapshot: HashMap<String, (u64, u64)>,
     pub cached_processes: Vec<CombinedProcess>,
 }
 
 /// A process that may have multiple instances (PIDs) combined together.
 ///
 /// CPU and memory usage are summed across all instances of the process.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CombinedProcess {
     /// Process name
     pub name: String,
@@ -54,6 +56,8 @@ impl SystemMonitor {
             disks,
             networks,
             last_disk_refresh: std::time::Instant::now(),
+            last_network_refresh: std::time::Instant::now(),
+            last_network_snapshot: HashMap::new(),
             cached_processes: Vec::new(),
         };
         // Populate the cache on initialization
@@ -86,12 +90,23 @@ impl SystemMonitor {
             self.disks.refresh(false);
             self.last_disk_refresh = std::time::Instant::now();
         }
-        self.networks.refresh(false);
+        // Only refresh networks every 5 seconds to reduce overhead
+        if self.last_network_refresh.elapsed() >= std::time::Duration::from_secs(5) {
+            // Capture pre-refresh totals for rate calculation
+            for (iface, data) in self.networks.iter() {
+                self.last_network_snapshot.insert(
+                    iface.clone(),
+                    (data.total_received(), data.total_transmitted()),
+                );
+            }
+            self.networks.refresh(false);
+            self.last_network_refresh = std::time::Instant::now();
+        }
 
         self.sys.refresh_processes_specifics(
             sysinfo::ProcessesToUpdate::All,
             false,
-            ProcessRefreshKind::everything(),
+            ProcessRefreshKind::nothing().with_cpu().with_memory(),
         );
 
         // Update cached process list
@@ -207,6 +222,44 @@ impl SystemMonitor {
         out
     }
 
+    /// Get network interface information with throughput rates.
+    ///
+    /// Returns (iface_name, total_rx, total_tx, rx_rate_bytes_per_sec, tx_rate_bytes_per_sec).
+    /// Rates are calculated from the delta since the last network snapshot.
+    pub fn network_info_with_rates(&self) -> Vec<(String, u64, u64, f64, f64)> {
+        let elapsed = self.last_network_refresh.elapsed().as_secs_f64();
+        let mut out = Vec::new();
+        for (iface, data) in self.networks.iter() {
+            let total_rx = data.total_received();
+            let total_tx = data.total_transmitted();
+            let usage = total_rx + total_tx;
+            if usage > 0 {
+                let (rx_rate, tx_rate) =
+                    if let Some(&(prev_rx, prev_tx)) = self.last_network_snapshot.get(iface) {
+                        let dt = elapsed.max(0.1); // avoid division by zero
+                        let rx_delta = total_rx.saturating_sub(prev_rx);
+                        let tx_delta = total_tx.saturating_sub(prev_tx);
+                        (rx_delta as f64 / dt, tx_delta as f64 / dt)
+                    } else {
+                        (0.0, 0.0)
+                    };
+                out.push((iface.clone(), total_rx, total_tx, rx_rate, tx_rate));
+            }
+        }
+        out
+    }
+
+    /// Get system uptime in seconds.
+    pub fn system_uptime(&self) -> u64 {
+        System::uptime()
+    }
+
+    /// Get system load averages (1, 5, 15 minute).
+    pub fn load_average(&self) -> (f64, f64, f64) {
+        let load = System::load_average();
+        (load.one, load.five, load.fifteen)
+    }
+
     /// Get a list of all processes, combined by name.
     ///
     /// Processes with the same name are combined, with CPU and memory usage summed.
@@ -224,8 +277,8 @@ impl SystemMonitor {
     ///     println!("{}: CPU={:.2}%, Memory={} bytes", proc.name, proc.cpu_usage, proc.memory_usage);
     /// }
     /// ```
-    pub fn combined_process_list(&self) -> Vec<CombinedProcess> {
-        self.cached_processes.clone()
+    pub fn combined_process_list(&self) -> &[CombinedProcess] {
+        &self.cached_processes
     }
 
     /// Internal method to compute the combined process list.
@@ -344,7 +397,7 @@ impl SystemMonitor {
 }
 
 /// Detailed information about a process.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ProcessDetails {
     pub command: String,
     pub start_time: u64,

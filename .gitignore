@@ -1,4 +1,10 @@
 /target
+src-tauri/target
+node_modules/
+ui/build/
+ui/.svelte-kit/
 GITHUB_ISSUES.md
 GITHUB_ISSUE_FOLLOWUPS.md
 MACOS_SIGNING_SETUP.md
+src-tauri/gen/
+.project-hub-tasks.json

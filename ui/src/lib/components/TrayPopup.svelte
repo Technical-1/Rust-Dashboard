@@ -7,6 +7,7 @@
 	import { getStatusColor, formatBytes, formatBytesPerSec, formatUptime } from '$lib/utils';
 	import type { SystemSnapshot } from '$lib/types';
 	import { logError } from '$lib/log';
+	import { loadConfig } from '$lib/stores/config';
 
 	const REFRESH_MS = 2000;
 
@@ -37,6 +38,9 @@
 	}
 
 	onMount(async () => {
+		// Load config so the tray popup follows the user's theme
+		await loadConfig();
+
 		// Listen for visibility events from Rust
 		unlistenVisible = await listen<boolean>('tray-visible', (event) => {
 			if (event.payload) {

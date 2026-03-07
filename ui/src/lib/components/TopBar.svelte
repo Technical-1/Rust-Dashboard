@@ -1,13 +1,14 @@
 <script lang="ts">
 	import { invoke } from '@tauri-apps/api/core';
 	import { getCurrentWindow } from '@tauri-apps/api/window';
-	import { paused, theme, sidebarCollapsed, togglePause } from '$lib/stores/config';
+	import { paused, theme, sidebarCollapsed, refreshInterval, togglePause, updateRefreshInterval, saveCurrentConfig } from '$lib/stores/config';
 	import { systemSnapshot } from '$lib/stores/system';
 	import { formatBytes, formatUptime } from '$lib/utils';
 	import { logError } from '$lib/log';
 
 	function toggleTheme() {
 		theme.update((t) => (t === 'Dark' ? 'Light' : 'Dark'));
+		saveCurrentConfig();
 	}
 
 	async function manualRefresh() {
@@ -58,6 +59,25 @@
 		{#if $paused}
 			<span class="paused-badge">PAUSED</span>
 		{/if}
+
+		<select
+			class="interval-select"
+			value={$refreshInterval}
+			on:change={(e) => {
+				const val = Number(e.currentTarget.value);
+				updateRefreshInterval(val);
+				saveCurrentConfig();
+			}}
+			title="Refresh interval"
+			aria-label="Refresh interval"
+		>
+			<option value={1}>1s</option>
+			<option value={2}>2s</option>
+			<option value={5}>5s</option>
+			<option value={10}>10s</option>
+			<option value={30}>30s</option>
+			<option value={60}>60s</option>
+		</select>
 
 		<button
 			class="icon-btn"
@@ -177,6 +197,28 @@
 	.uptime-label,
 	.load-label {
 		color: var(--text-tertiary);
+	}
+
+	/* ─── Interval select ─── */
+	.interval-select {
+		font-size: 11px;
+		font-family: inherit;
+		padding: 3px 6px;
+		border: 0.5px solid var(--border-input);
+		border-radius: var(--radius-s);
+		background: var(--bg-input);
+		color: var(--text-secondary);
+		cursor: pointer;
+		outline: none;
+		margin-right: 4px;
+		transition: all var(--duration-fast) var(--ease-out);
+	}
+	.interval-select:hover {
+		border-color: var(--border-subtle);
+		color: var(--text-primary);
+	}
+	.interval-select:focus-visible {
+		border-color: var(--accent);
 	}
 
 	/* ─── Paused badge ─── */

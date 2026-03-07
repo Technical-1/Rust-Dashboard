@@ -14,7 +14,6 @@ use tauri::{Emitter, Listener, Manager, WebviewUrl, WebviewWindowBuilder, Window
 const HISTORY_CAPACITY: usize = 300;
 const TRAY_POPUP_WIDTH: f64 = 340.0;
 const TRAY_POPUP_HEIGHT: f64 = 480.0;
-const TRAY_Y_OFFSET: f64 = 10.0;
 
 // --- Response structs for frontend consumption ---
 
@@ -319,55 +318,78 @@ fn main() {
                     {
                         let handle = tray_handle.clone();
 
-                        // Get scale factor for coordinate conversion
-                        let scale = handle
-                            .get_webview_window("main")
-                            .and_then(|w| w.scale_factor().ok())
-                            .unwrap_or(2.0);
-
-                        // Convert tray icon rect to logical coordinates
-                        let (icon_x, icon_y) = match rect.position {
-                            tauri::Position::Physical(p) => {
-                                (p.x as f64 / scale, p.y as f64 / scale)
-                            }
+                        // Get physical coords from the tray icon rect
+                        let (phys_x, phys_y) = match rect.position {
+                            tauri::Position::Physical(p) => (p.x as f64, p.y as f64),
                             tauri::Position::Logical(p) => (p.x, p.y),
                         };
-                        let (icon_w, icon_h) = match rect.size {
-                            tauri::Size::Physical(s) => {
-                                (s.width as f64 / scale, s.height as f64 / scale)
-                            }
+                        let (phys_w, phys_h) = match rect.size {
+                            tauri::Size::Physical(s) => (s.width as f64, s.height as f64),
                             tauri::Size::Logical(s) => (s.width, s.height),
                         };
 
-                        let x = icon_x + (icon_w / 2.0) - (TRAY_POPUP_WIDTH / 2.0);
-                        let y = icon_y + icon_h - TRAY_Y_OFFSET;
+                        // Find scale factor for the monitor containing the tray icon
+                        let scale = handle
+                            .available_monitors()
+                            .unwrap_or_default()
+                            .iter()
+                            .find(|m| {
+                                let pos = m.position();
+                                let sz = m.size();
+                                let ix = phys_x as i32;
+                                let iy = phys_y as i32;
+                                ix >= pos.x
+                                    && ix < pos.x + sz.width as i32
+                                    && iy >= pos.y
+                                    && iy < pos.y + sz.height as i32
+                            })
+                            .map(|m| m.scale_factor())
+                            .unwrap_or(2.0);
 
-                        // Toggle: if popup exists, show/hide it; otherwise create it once
+                        // Convert to logical coordinates (consistent with inner_size)
+                        let icon_x = phys_x / scale;
+                        let icon_y = phys_y / scale;
+                        let icon_w = phys_w / scale;
+                        let icon_h = phys_h / scale;
+
+                        // Center popup under icon, flush with menu bar bottom
+                        let x = icon_x + (icon_w / 2.0) - (TRAY_POPUP_WIDTH / 2.0);
+                        let y = icon_y + icon_h;
+
+                        // Close existing popup — recreate each time to ensure
+                        // correct monitor and size (avoids stale-position bugs)
                         if let Some(popup) = handle.get_webview_window("tray-popup") {
                             if popup.is_visible().unwrap_or(false) {
-                                let _ = popup.hide();
+                                let _ = popup.close();
                                 let _ = handle.emit("tray-visible", false);
-                            } else {
-                                let _ = popup.set_position(tauri::LogicalPosition::new(x, y));
-                                let _ = popup.show();
-                                let _ = popup.set_focus();
-                                let _ = handle.emit("tray-visible", true);
+                                return;
                             }
-                        } else {
-                            let _ = WebviewWindowBuilder::new(
-                                &handle,
-                                "tray-popup",
-                                WebviewUrl::App("/?tray=true".into()),
-                            )
-                            .title("Rust Dashboard")
-                            .inner_size(TRAY_POPUP_WIDTH, TRAY_POPUP_HEIGHT)
-                            .position(x, y)
-                            .decorations(false)
-                            .shadow(false)
-                            .resizable(false)
-                            .always_on_top(true)
-                            .visible(true)
-                            .build();
+                            let _ = popup.close();
+                        }
+
+                        if let Ok(popup) = WebviewWindowBuilder::new(
+                            &handle,
+                            "tray-popup",
+                            WebviewUrl::App("/?tray=true".into()),
+                        )
+                        .title("Rust Dashboard")
+                        .inner_size(TRAY_POPUP_WIDTH, TRAY_POPUP_HEIGHT)
+                        .position(x, y)
+                        .decorations(false)
+                        .shadow(false)
+                        .resizable(false)
+                        .always_on_top(true)
+                        .visible(true)
+                        .build()
+                        {
+                            // Ensure correct size/position after creation in case
+                            // macOS placed the window on a different monitor initially
+                            let _ = popup.set_size(tauri::LogicalSize::new(
+                                TRAY_POPUP_WIDTH,
+                                TRAY_POPUP_HEIGHT,
+                            ));
+                            let _ = popup.set_position(tauri::LogicalPosition::new(x, y));
+                            let _ = popup.set_focus();
                             let _ = handle.emit("tray-visible", true);
                         }
                     }

@@ -27,11 +27,10 @@ impl Default for AppConfig {
 
 impl AppConfig {
     pub fn config_path() -> Result<PathBuf, String> {
-        let mut path = dirs::config_dir()
-            .ok_or_else(|| "Cannot determine config directory".to_string())?;
+        let mut path =
+            dirs::config_dir().ok_or_else(|| "Cannot determine config directory".to_string())?;
         path.push("rust-dashboard");
-        fs::create_dir_all(&path)
-            .map_err(|e| format!("Cannot create config directory: {}", e))?;
+        fs::create_dir_all(&path).map_err(|e| format!("Cannot create config directory: {}", e))?;
         path.push("config.toml");
         Ok(path)
     }
