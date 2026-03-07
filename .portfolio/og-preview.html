@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    .og-card {
+      width: 1200px;
+      height: 630px;
+      background: #1a1a1e;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: rgba(255, 255, 255, 0.92);
+    }
+
+    /* Subtle mesh gradient background */
+    .og-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 600px 400px at 15% 30%, rgba(10, 132, 255, 0.12), transparent),
+        radial-gradient(ellipse 500px 350px at 85% 70%, rgba(180, 100, 255, 0.08), transparent),
+        radial-gradient(ellipse 400px 300px at 50% 90%, rgba(48, 209, 88, 0.06), transparent);
+    }
+
+    /* Grid pattern overlay */
+    .og-card::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+    }
+
+    /* Left section: branding */
+    .left {
+      position: relative;
+      z-index: 1;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 60px 50px 60px 70px;
+      gap: 28px;
+    }
+
+    .logo-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .gauge-icon {
+      width: 56px;
+      height: 56px;
+      background: rgba(40, 40, 44, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+
+    .gauge-icon svg {
+      width: 36px;
+      height: 36px;
+    }
+
+    .title {
+      font-size: 80px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+    }
+
+    .title .rust {
+      color: #ff9f0a;
+    }
+
+    .subtitle {
+      font-size: 22px;
+      font-weight: 400;
+      color: rgba(255, 255, 255, 0.55);
+      line-height: 1.5;
+      max-width: 460px;
+    }
+
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .tag {
+      padding: 6px 14px;
+      border-radius: 100px;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+      background: rgba(40, 40, 44, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      color: rgba(255, 255, 255, 0.7);
+    }
+
+    .tag.rust-tag { color: #ff9f0a; border-color: rgba(255, 159, 10, 0.25); background: rgba(255, 159, 10, 0.08); }
+    .tag.tauri-tag { color: #0a84ff; border-color: rgba(10, 132, 255, 0.25); background: rgba(10, 132, 255, 0.08); }
+    .tag.svelte-tag { color: #ff453a; border-color: rgba(255, 69, 58, 0.25); background: rgba(255, 69, 58, 0.08); }
+
+    .url {
+      font-size: 14px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.3);
+      margin-top: auto;
+      padding-top: 12px;
+    }
+
+    /* Right section: mock dashboard */
+    .right {
+      position: relative;
+      z-index: 1;
+      width: 480px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 50px 60px 50px 20px;
+      gap: 14px;
+    }
+
+    /* Glass card */
+    .card {
+      background: rgba(40, 40, 44, 0.55);
+      border: 0.5px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      padding: 16px 18px;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2), inset 0 0.5px 0 rgba(255,255,255,0.06);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .card-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.5);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .card-value {
+      font-size: 13px;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .bar-track {
+      height: 6px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.3s;
+    }
+
+    .bar-fill.green { background: #30d158; }
+    .bar-fill.yellow { background: #ffd60a; }
+    .bar-fill.red { background: #ff453a; }
+    .bar-fill.blue { background: #0a84ff; }
+
+    /* Network card */
+    .net-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 14px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+    }
+
+    .net-arrow { font-size: 16px; font-weight: 700; }
+    .net-arrow.down { color: #30d158; }
+    .net-arrow.up { color: #0a84ff; }
+    .net-spacer { flex: 1; }
+    .net-val { color: rgba(255, 255, 255, 0.85); }
+
+    /* Processes card */
+    .proc-row {
+      display: flex;
+      align-items: center;
+      padding: 5px 0;
+      font-size: 12px;
+    }
+
+    .proc-row + .proc-row {
+      border-top: 0.5px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .proc-name {
+      flex: 1;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    .proc-cpu {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+      width: 55px;
+      text-align: right;
+    }
+
+    .proc-mem {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.45);
+      width: 60px;
+      text-align: right;
+    }
+
+    /* Per-core mini bars */
+    .cores {
+      display: flex;
+      gap: 4px;
+      margin-top: 8px;
+    }
+
+    .core-bar {
+      flex: 1;
+      height: 18px;
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 3px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .core-fill {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body>
+  <div class="og-card">
+    <!-- Left: branding -->
+    <div class="left">
+      <div class="title">
+        <span class="rust">Rust</span> Dashboard
+      </div>
+
+      <div class="subtitle">
+        Native cross-platform system monitor with glassmorphism UI, menu bar tray, detachable panels, and real-time charts.
+      </div>
+
+      <div class="tags">
+        <span class="tag rust-tag">Rust</span>
+        <span class="tag tauri-tag">Tauri v2</span>
+        <span class="tag svelte-tag">SvelteKit</span>
+        <span class="tag">Chart.js</span>
+        <span class="tag">sysinfo</span>
+      </div>
+
+    </div>
+
+    <!-- Right: mock dashboard panels -->
+    <div class="right">
+      <!-- CPU Card -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-label">CPU</span>
+          <span class="card-value" style="color: #ffd60a;">67.3%</span>
+        </div>
+        <div class="bar-track">
+          <div class="bar-fill yellow" style="width: 67.3%;"></div>
+        </div>
+        <div class="cores">
+          <div class="core-bar"><div class="core-fill" style="height: 82%; background: #ff453a;"></div></div>
+          <div class="core-bar"><div class="core-fill" style="height: 45%; background: #30d158;"></div></div>
+          <div class="core-bar"><div class="core-fill" style="height: 71%; background: #ffd60a;"></div></div>
+          <div class="core-bar"><div class="core-fill" style="height: 58%; background: #ffd60a;"></div></div>
+          <div class="core-bar"><div class="core-fill" style="height: 34%; background: #30d158;"></div></div>
+          <div class="core-bar"><div class="core-fill" style="height: 92%; background: #ff453a;"></div></div>
+          <div class="core-bar"><div class="core-fill" style="height: 23%; background: #30d158;"></div></div>
+          <div class="core-bar"><div class="core-fill" style="height: 61%; background: #ffd60a;"></div></div>
+        </div>
+      </div>
+
+      <!-- Memory Card -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-label">Memory</span>
+          <span class="card-value" style="color: #30d158;">12.4 / 32 GB</span>
+        </div>
+        <div class="bar-track">
+          <div class="bar-fill green" style="width: 38.7%;"></div>
+        </div>
+      </div>
+
+      <!-- Disk Card -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-label">Disk</span>
+          <span class="card-value" style="color: #ffd60a;">412 / 500 GB</span>
+        </div>
+        <div class="bar-track">
+          <div class="bar-fill yellow" style="width: 82.4%;"></div>
+        </div>
+      </div>
+
+      <!-- Network Card -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-label">Network</span>
+        </div>
+        <div class="net-row">
+          <span class="net-arrow down">&#8595;</span>
+          <span class="net-val">2.4 MB/s</span>
+          <span class="net-spacer"></span>
+          <span class="net-arrow up">&#8593;</span>
+          <span class="net-val">340 KB/s</span>
+        </div>
+      </div>
+
+      <!-- Top Processes Card -->
+      <div class="card" style="padding: 12px 18px;">
+        <div class="card-header" style="margin-bottom: 6px;">
+          <span class="card-label">Top Processes</span>
+        </div>
+        <div class="proc-row">
+          <span class="proc-name">rust-dashboard</span>
+          <span class="proc-cpu" style="color: #30d158;">3.2%</span>
+          <span class="proc-mem">48 MB</span>
+        </div>
+        <div class="proc-row">
+          <span class="proc-name">Chrome</span>
+          <span class="proc-cpu" style="color: #ff453a;">124.8%</span>
+          <span class="proc-mem">1.8 GB</span>
+        </div>
+        <div class="proc-row">
+          <span class="proc-name">node</span>
+          <span class="proc-cpu" style="color: #ffd60a;">52.1%</span>
+          <span class="proc-mem">412 MB</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
