@@ -1,0 +1,21 @@
+{
+  "identifier": "main-window",
+  "description": "Capabilities for the main dashboard window",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-start-resize-dragging",
+    "core:window:allow-set-resizable",
+    "core:window:allow-close",
+    "core:window:allow-set-focus",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:webview:allow-create-webview-window",
+    "core:event:default",
+    "dialog:default",
+    "dialog:allow-save",
+    "os:default",
+    "window-state:default"
+  ]
+}
