@@ -16,13 +16,17 @@ jobs:
       matrix:
         include:
           - platform: ubuntu-22.04
-            args: '--config {"build":{"beforeBuildCommand":""}}'
+            target: ''
+            bundles: 'deb,appimage,rpm'
           - platform: macos-latest
-            args: '--target aarch64-apple-darwin --config {"build":{"beforeBuildCommand":""}}'
+            target: 'aarch64-apple-darwin'
+            bundles: 'dmg'
           - platform: macos-latest
-            args: '--target x86_64-apple-darwin --config {"build":{"beforeBuildCommand":""}}'
+            target: 'x86_64-apple-darwin'
+            bundles: 'dmg'
           - platform: windows-latest
-            args: '--config {"build":{"beforeBuildCommand":""}}'
+            target: ''
+            bundles: 'msi,nsis'
 
     runs-on: ${{ matrix.platform }}
 
@@ -52,19 +56,58 @@ jobs:
       - name: Build frontend
         run: cd ui && npm run build
 
-      - uses: tauri-apps/tauri-action@73fb865345c54760d875b94642314f8c0c894afa # v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2" --locked
+
+      - name: Build Tauri app
+        run: |
+          if [ -n "${{ matrix.target }}" ]; then
+            cargo tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} --config '{"build":{"beforeBuildCommand":""}}'
+          else
+            cargo tauri build --bundles ${{ matrix.bundles }} --config '{"build":{"beforeBuildCommand":""}}'
+          fi
+        shell: bash
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'Rust Dashboard ${{ github.ref_name }}'
-          releaseBody: 'See the assets to download and install this version.'
-          releaseDraft: false
+          name: bundles-${{ matrix.platform }}-${{ matrix.target || 'default' }}
+          path: |
+            target/**/bundle/**/*.dmg
+            target/**/bundle/**/*.app.tar.gz
+            target/**/bundle/**/*.deb
+            target/**/bundle/**/*.AppImage
+            target/**/bundle/**/*.rpm
+            target/**/bundle/**/*.msi
+            target/**/bundle/**/*.exe
+          if-no-files-found: error
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          merge-multiple: true
+          path: artifacts
+
+      - name: List artifacts
+        run: find artifacts -type f | head -50
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: 'Rust Dashboard ${{ github.ref_name }}'
+          body: 'See the assets to download and install this version.'
+          draft: false
           prerelease: false
-          args: ${{ matrix.args }}
+          files: |
+            artifacts/**/*.dmg
+            artifacts/**/*.app.tar.gz
+            artifacts/**/*.deb
+            artifacts/**/*.AppImage
+            artifacts/**/*.rpm
+            artifacts/**/*.msi
+            artifacts/**/*.exe
