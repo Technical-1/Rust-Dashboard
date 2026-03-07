@@ -269,7 +269,7 @@ fn main() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_os::init())
-        .plugin(tauri_plugin_fs::init())
+
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .manage(app_state)
         .setup(move |app| {

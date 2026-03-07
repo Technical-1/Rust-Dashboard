@@ -12,7 +12,7 @@ rust_dashboard_lib = { path = ".." }
 tauri = { version = "2", features = ["tray-icon", "image-png"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-os = "2"
-tauri-plugin-fs = "2"
+
 tauri-plugin-window-state = "2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
