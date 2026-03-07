@@ -300,7 +300,7 @@ fn main() {
                             }
                         }
                         "quit" => {
-                            std::process::exit(0);
+                            app_handle.exit(0);
                         }
                         _ => {}
                     }
@@ -461,8 +461,10 @@ fn main() {
         .expect("error building Tauri application");
 
     app.run(|_app_handle, event| {
-        if let tauri::RunEvent::ExitRequested { api, .. } = event {
-            api.prevent_exit();
+        if let tauri::RunEvent::ExitRequested { api, code, .. } = event {
+            if code.is_none() {
+                api.prevent_exit();
+            }
         }
     });
 }
