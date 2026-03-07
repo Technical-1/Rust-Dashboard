@@ -17,7 +17,7 @@ jobs:
         include:
           - platform: ubuntu-22.04
             target: ''
-            bundles: 'deb,appimage,rpm'
+            bundles: 'deb,rpm'
           - platform: macos-latest
             target: 'aarch64-apple-darwin'
             bundles: 'dmg'
@@ -76,7 +76,6 @@ jobs:
             target/**/bundle/**/*.dmg
             target/**/bundle/**/*.app.tar.gz
             target/**/bundle/**/*.deb
-            target/**/bundle/**/*.AppImage
             target/**/bundle/**/*.rpm
             target/**/bundle/**/*.msi
             target/**/bundle/**/*.exe
@@ -107,7 +106,6 @@ jobs:
             artifacts/**/*.dmg
             artifacts/**/*.app.tar.gz
             artifacts/**/*.deb
-            artifacts/**/*.AppImage
             artifacts/**/*.rpm
             artifacts/**/*.msi
             artifacts/**/*.exe
