@@ -28,7 +28,7 @@ fn test_config_save_and_load() {
 
 #[test]
 fn test_config_path_exists() {
-    let path = AppConfig::config_path();
+    let path = AppConfig::config_path().expect("config_path should succeed");
     // Config path should be valid (directory should be created)
     assert!(path.parent().unwrap().exists() || path.parent().unwrap().parent().is_some());
 }

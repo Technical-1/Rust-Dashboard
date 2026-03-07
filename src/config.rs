@@ -26,16 +26,24 @@ impl Default for AppConfig {
 }
 
 impl AppConfig {
-    pub fn config_path() -> PathBuf {
-        let mut path = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
+    pub fn config_path() -> Result<PathBuf, String> {
+        let mut path = dirs::config_dir()
+            .ok_or_else(|| "Cannot determine config directory".to_string())?;
         path.push("rust-dashboard");
-        fs::create_dir_all(&path).ok();
+        fs::create_dir_all(&path)
+            .map_err(|e| format!("Cannot create config directory: {}", e))?;
         path.push("config.toml");
-        path
+        Ok(path)
     }
 
     pub fn load() -> Self {
-        let path = Self::config_path();
+        let path = match Self::config_path() {
+            Ok(p) => p,
+            Err(e) => {
+                log::warn!("Config path error, using defaults: {}", e);
+                return Self::default();
+            }
+        };
         if path.exists() {
             if let Ok(contents) = fs::read_to_string(&path) {
                 if let Ok(config) = toml::from_str(&contents) {
@@ -47,7 +55,7 @@ impl AppConfig {
     }
 
     pub fn save(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let path = Self::config_path();
+        let path = Self::config_path().map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
         let contents = toml::to_string_pretty(self)?;
         fs::write(&path, contents)?;
         Ok(())

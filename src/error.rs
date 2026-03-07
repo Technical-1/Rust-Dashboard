@@ -14,6 +14,10 @@ pub enum DashboardError {
     /// System refresh failed
     #[error("System refresh failed: {0}")]
     SystemRefreshFailed(String),
+
+    /// Configuration error
+    #[error("Configuration error: {0}")]
+    ConfigError(String),
 }
 
 impl<T> From<std::sync::PoisonError<T>> for DashboardError {
