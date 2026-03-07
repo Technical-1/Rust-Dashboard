@@ -170,13 +170,13 @@ fn kill_process(state: tauri::State<'_, AppState>, pid: u32) -> Result<(), Strin
 
 #[tauri::command]
 fn set_refresh_interval(state: tauri::State<'_, AppState>, seconds: u32) {
-    let clamped = seconds.max(1);
-    state.refresh_interval.store(clamped, Ordering::Relaxed);
+    let clamped = seconds.clamp(1, 60);
+    state.refresh_interval.store(clamped, Ordering::Release);
 }
 
 #[tauri::command]
 fn set_paused(state: tauri::State<'_, AppState>, paused: bool) {
-    state.paused.store(paused, Ordering::Relaxed);
+    state.paused.store(paused, Ordering::Release);
 }
 
 #[tauri::command]
@@ -398,9 +398,9 @@ fn main() {
 
             std::thread::spawn(move || {
                 loop {
-                    let interval_secs = refresh_interval.load(Ordering::Relaxed);
+                    let interval_secs = refresh_interval.load(Ordering::Acquire);
 
-                    if !paused.load(Ordering::Relaxed) {
+                    if !paused.load(Ordering::Acquire) {
                         let snapshot = {
                             let mut mon = monitor.lock().unwrap_or_else(|e| {
                                 log::warn!("Monitor mutex was poisoned, recovering: {}", e);
