@@ -4,22 +4,32 @@
 
 ```mermaid
 flowchart TB
-    subgraph UI["GUI Layer (eframe/egui)"]
-        TP[Top Panel<br>Controls & Status]
-        CP[Central Panel<br>Dashboard Views]
-        DLG[Dialog Windows<br>Kill Confirmation]
+    subgraph UI["Frontend (SvelteKit + TypeScript)"]
+        ROUTES["SvelteKit Routes<br>+page.svelte"]
+        STORES["Reactive Stores<br>system, config, processes"]
+        COMPS["Svelte Components<br>TopBar, CpuPanel, MemoryPanel,<br>DiskPanel, NetworkPanel,<br>ProcessTable, TrayPopup, etc."]
+        CHARTS["Chart.js<br>CPU & Memory History"]
     end
 
-    subgraph APP["Application Core"]
-        RDA[RustDashboardApp<br>Main State Manager]
-        CFG[AppConfig<br>Persistence Layer]
-        ERR[DashboardError<br>Error Types]
+    subgraph TAURI["Tauri v2 Bridge"]
+        CMD["Tauri Commands<br>13 IPC handlers"]
+        EVENTS["Event System<br>system-update, tray-visible"]
+        TRAY["Tray Icon<br>Menu bar popup"]
+        WINDOWS["Window Manager<br>Main, Detached Panels, Tray Popup"]
     end
 
-    subgraph DATA["Data Layer"]
-        SM[SystemMonitor<br>sysinfo Wrapper]
-        HIST[Historical Data<br>VecDeque Storage]
-        CACHE[Process Cache<br>HashMap Aggregation]
+    subgraph APP["Application Core (Rust)"]
+        STATE["AppState<br>Arc<Mutex> shared state"]
+        BG["Background Thread<br>Periodic refresh"]
+        SNAP["SystemSnapshot<br>Serialized data transfer"]
+        CFG["AppConfig<br>TOML persistence"]
+        ERR["DashboardError<br>Error types"]
+    end
+
+    subgraph DATA["Data Layer (rust_dashboard_lib)"]
+        SM["SystemMonitor<br>sysinfo wrapper"]
+        CACHE["Process Cache<br>HashMap aggregation"]
+        HIST["History Buffers<br>VecDeque (cap 300)"]
     end
 
     subgraph SYS["System Resources"]
@@ -30,35 +40,28 @@ flowchart TB
         PROC[Process List]
     end
 
-    subgraph THREAD["Threading Model"]
-        BG[Background Thread<br>Periodic Refresh]
-        UI_T[UI Thread<br>Rendering]
-        ATOMIC[AtomicU32<br>Interval Sync]
-        MUTEX[Arc Mutex<br>Data Protection]
-    end
+    ROUTES --> STORES
+    STORES --> COMPS
+    COMPS --> CHARTS
 
-    TP --> RDA
-    CP --> RDA
-    DLG --> RDA
+    COMPS -->|"invoke()"| CMD
+    EVENTS -->|"emit()"| STORES
 
-    RDA --> SM
-    RDA --> CFG
-    RDA --> HIST
-    RDA --> ERR
+    CMD --> STATE
+    TRAY --> WINDOWS
+    EVENTS --> TRAY
+
+    STATE --> SM
+    STATE --> HIST
+    BG --> STATE
+    BG -->|"emit('system-update')"| EVENTS
 
     SM --> CPU
     SM --> MEM
     SM --> DISK
     SM --> NET
     SM --> PROC
-
     SM --> CACHE
-
-    BG --> SM
-    BG --> ATOMIC
-    BG --> MUTEX
-    UI_T --> MUTEX
-    RDA --> ATOMIC
 ```
 
 ## Data Flow
@@ -68,83 +71,118 @@ sequenceDiagram
     participant BG as Background Thread
     participant SM as SystemMonitor
     participant MUTEX as Arc<Mutex>
-    participant APP as RustDashboardApp
-    participant UI as egui Context
+    participant TAURI as Tauri Event Bus
+    participant STORE as Svelte Stores
+    participant UI as Svelte Components
 
-    loop Every N seconds
+    loop Every N seconds (configurable 1-60s)
         BG->>MUTEX: lock()
         MUTEX->>SM: refresh()
         SM->>SM: Query sysinfo APIs
-        SM->>SM: Aggregate processes
+        SM->>SM: Aggregate processes by name
+        BG->>BG: build_snapshot()
         BG->>MUTEX: release()
-        BG->>BG: sleep(interval)
+        BG->>BG: Update CPU/memory history
+        BG->>TAURI: emit("system-update", snapshot)
     end
 
-    loop UI Frame
-        UI->>APP: update()
-        APP->>MUTEX: lock()
-        MUTEX->>SM: Read data
-        APP->>APP: Copy data locally
-        APP->>MUTEX: release()
-        APP->>APP: Update history
-        APP->>UI: Render widgets
-    end
+    TAURI->>STORE: listen("system-update")
+    STORE->>UI: Reactive update (all windows)
+
+    Note over UI,TAURI: Detached panels & tray popup<br>receive same broadcast events
+
+    UI->>TAURI: invoke("kill_process", pid)
+    TAURI->>MUTEX: lock()
+    MUTEX->>SM: kill_process(pid)
+    TAURI->>UI: Result<(), String>
 ```
+
+## Multi-Window Architecture
+
+```mermaid
+flowchart LR
+    subgraph MAIN["Main Window"]
+        TB[TopBar]
+        CP[CpuPanel]
+        MP[MemoryPanel]
+        DP[DiskPanel]
+        NP[NetworkPanel]
+        PT[ProcessTable]
+    end
+
+    subgraph DETACHED["Detached Panels"]
+        D1["detached-cpu"]
+        D2["detached-memory"]
+        D3["detached-disk"]
+        D4["detached-network"]
+        D5["detached-processes"]
+    end
+
+    subgraph TRAY["Tray Popup"]
+        TP[TrayPopup Component]
+    end
+
+    EVENT["system-update<br>broadcast event"]
+
+    EVENT -->|"All windows"| MAIN
+    EVENT -->|"All windows"| DETACHED
+    TP -->|"tray_refresh command"| TP
+
+    MAIN -->|"Detach button"| DETACHED
+    TRAY -->|"Open Dashboard"| MAIN
+```
+
+Windows are differentiated by URL parameters:
+- Main: `/`
+- Detached panels: `/?view=cpu&detached=true`
+- Tray popup: `/?tray=true`
 
 ## Key Architectural Decisions
 
-### 1. Background Thread with Atomic Interval Synchronization
+### 1. Tauri v2 with SvelteKit Frontend
 
-I chose to separate data collection from UI rendering using a dedicated background thread. The refresh interval is shared via `AtomicU32`, allowing the UI to update the interval without requiring mutex locks for this communication. This prevents the UI from blocking on expensive system queries.
+I migrated from a pure-Rust eframe/egui app to Tauri v2 + SvelteKit. This provides a modern, polished UI with glassmorphism design, Chart.js visualizations, and proper multi-window support — all while keeping the performance-critical system monitoring logic in Rust.
 
-**Why this matters:** System calls like `refresh_processes()` can take 50-100ms on systems with many processes. Running these on the UI thread would cause noticeable lag.
+**Why this matters:** Web technologies excel at UI design and animation. Rust excels at system-level work. Tauri bridges both without Electron's overhead (~50MB binary vs 100MB+ for Electron).
 
-### 2. Minimal Mutex Lock Duration
+### 2. Workspace with Separate Library Crate
 
-I minimize the time spent holding the `Arc<Mutex<SystemMonitor>>` lock by copying all needed data in a single scope, then releasing the lock before any processing or rendering. This pattern appears in `main.rs`:
+The project is a Cargo workspace with `rust_dashboard_lib` (root) and `rust-dashboard` (src-tauri/). The library exposes `SystemMonitor`, `AppConfig`, and `DashboardError` independently of the Tauri binary.
 
-```rust
-let (cpu_usage, memory_info, ...) = {
-    let mon = self.monitor.lock()?;
-    (mon.global_cpu_usage(), mon.memory_info(), ...)
-};
-// Lock released here, now safe to render
-```
+**Why this matters:** The monitoring logic can be reused in other projects, CLI tools, or headless monitoring scripts without pulling in Tauri dependencies.
 
-**Why this matters:** Long-held locks cause contention between the UI and background threads, resulting in dropped frames or delayed updates.
+### 3. SystemSnapshot Includes Processes
 
-### 3. Process Aggregation by Name
+Rather than making separate IPC calls for system stats and process lists, `build_snapshot()` bundles everything into a single `SystemSnapshot` struct. The background thread emits this as one event.
 
-Rather than displaying every individual process (which can number in the hundreds), I aggregate processes by name, summing their CPU and memory usage. This mirrors how macOS Activity Monitor behaves and makes the display more comprehensible.
+**Why this matters:** Eliminates mutex contention from multiple concurrent lock acquisitions. One lock, one refresh, one emit.
 
-**Why this matters:** Chrome alone can spawn 20+ processes. Without aggregation, the process list becomes unwieldy.
+### 4. Close/Recreate Pattern for Tray Popup
 
-### 4. Cached Process List
+The tray popup is destroyed and recreated on each click rather than using show/hide toggling. Each creation computes the correct monitor, scale factor, and position.
 
-I cache the combined process list in `SystemMonitor::cached_processes` and only recompute it during `refresh()`. The public `combined_process_list()` method returns a clone of this cache rather than recomputing on every call.
+**Why this matters:** Show/hide preserves stale window state — if the user moves to a different monitor, the popup appears at the old position with wrong DPI scaling. Close/recreate ensures correct placement every time.
 
-**Why this matters:** Process aggregation involves HashMap operations and string allocations. Computing this multiple times per frame (once per render, once per filter operation) would be wasteful.
+### 5. Multi-Monitor DPI-Aware Positioning
 
-### 5. Conditional Disk Refresh
+Tray popup positioning uses `available_monitors()` to find the monitor containing the tray icon, extracts its scale factor, converts physical coordinates to logical coordinates, then positions the popup centered under the icon.
 
-Disk information is only refreshed every 60 seconds (`last_disk_refresh` timestamp check), since disk statistics change slowly and the refresh can be expensive on systems with many mounts.
+**Why this matters:** macOS Retina displays use 2x scaling. Without per-monitor scale factor detection, the popup would appear at incorrect positions on multi-monitor setups with mixed DPI.
 
-**Why this matters:** Network-mounted filesystems or systems with many partitions can have slow disk enumeration.
+### 6. Event Broadcasting to All Windows
 
-### 6. Configuration Persistence via TOML
+The background thread emits `"system-update"` events via `app_handle.emit()`, which broadcasts to all windows simultaneously. Each window's Svelte stores listen independently.
 
-I use platform-appropriate directories (`dirs::config_dir()`) and TOML serialization for settings persistence. This follows OS conventions and keeps configuration human-readable.
+**Why this matters:** Detached panels and the main window all stay in sync without additional IPC calls. No per-window polling or state synchronization code needed.
 
-**Why this matters:** Users expect applications to remember their preferences, and TOML is easier to edit manually than JSON or binary formats.
+### 7. Configuration Persistence via TOML
 
-### 7. Custom Error Types with thiserror
+Settings (refresh interval, theme) persist to `~/.config/rust-dashboard/config.toml` using `dirs::config_dir()`. Changes from the UI (TopBar dropdown, theme toggle) call `saveCurrentConfig()` to write immediately.
 
-I defined `DashboardError` using the `thiserror` crate for structured error handling. This provides clear error messages and allows callers to match on specific error variants.
+**Why this matters:** Config changes propagate across all windows and persist across app restarts. TOML is human-readable for manual editing.
 
-**Why this matters:** Generic `Box<dyn Error>` loses type information. Custom error types make debugging and error recovery more straightforward.
+### 8. Split Tauri Capabilities
 
-### 8. Dual Library/Binary Structure
+Permissions are split between the main window and detached panels via Tauri's capability system. The main window gets full access (dialog, process kill), while panels get read-only system data access.
 
-The project exposes `rust_dashboard_lib` as a library crate while also building the `Rust-Dashboard` binary. This allows the `SystemMonitor` to be reused in other projects or scripts.
-
-**Why this matters:** Reusability. The monitoring logic can be embedded in other applications or used for headless monitoring.
+**Why this matters:** Principle of least privilege. A detached CPU panel doesn't need process kill permissions.
