@@ -16,13 +16,13 @@ jobs:
       matrix:
         include:
           - platform: ubuntu-22.04
-            args: ''
+            args: '--config build.beforeBuildCommand=""'
           - platform: macos-latest
-            args: '--target aarch64-apple-darwin'
+            args: '--target aarch64-apple-darwin --config build.beforeBuildCommand=""'
           - platform: macos-latest
-            args: '--target x86_64-apple-darwin'
+            args: '--target x86_64-apple-darwin --config build.beforeBuildCommand=""'
           - platform: windows-latest
-            args: ''
+            args: '--config build.beforeBuildCommand=""'
 
     runs-on: ${{ matrix.platform }}
 
@@ -69,4 +69,3 @@ jobs:
           prerelease: false
           args: ${{ matrix.args }}
           projectPath: src-tauri
-          beforeBuildCommand: ''
