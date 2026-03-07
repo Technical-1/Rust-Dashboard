@@ -18,15 +18,19 @@ jobs:
           - platform: ubuntu-22.04
             target: ''
             bundles: 'deb,rpm'
+            tauri_config: '{"build":{"beforeBuildCommand":""}}'
           - platform: macos-latest
             target: 'aarch64-apple-darwin'
             bundles: 'dmg'
+            tauri_config: '{"build":{"beforeBuildCommand":""}}'
           - platform: macos-latest
             target: 'x86_64-apple-darwin'
             bundles: 'dmg'
+            tauri_config: '{"build":{"beforeBuildCommand":""}}'
           - platform: windows-latest
             target: ''
             bundles: 'msi,nsis'
+            tauri_config: '{"build":{"beforeBuildCommand":""},"bundle":{"icon":["icons/32x32.png","icons/128x128.png","icons/128x128@2x.png","icons/icon.ico","icons/icon.png"]}}'
 
     runs-on: ${{ matrix.platform }}
 
@@ -60,12 +64,11 @@ jobs:
         run: cargo install tauri-cli --version "^2" --locked
 
       - name: Build Tauri app
-        working-directory: src-tauri
         run: |
           if [ -n "${{ matrix.target }}" ]; then
-            cargo tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} --config '{"build":{"beforeBuildCommand":"","frontendDist":"../ui/build"}}'
+            cargo tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} --config '${{ matrix.tauri_config }}'
           else
-            cargo tauri build --bundles ${{ matrix.bundles }} --config '{"build":{"beforeBuildCommand":"","frontendDist":"../ui/build"}}'
+            cargo tauri build --bundles ${{ matrix.bundles }} --config '${{ matrix.tauri_config }}'
           fi
         shell: bash
 

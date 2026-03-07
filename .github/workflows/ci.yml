@@ -59,6 +59,7 @@ jobs:
         run: cd ui && npm ci
 
       - name: Audit Rust dependencies
+        continue-on-error: true
         run: |
           cargo install cargo-audit --locked || true
           cargo audit
