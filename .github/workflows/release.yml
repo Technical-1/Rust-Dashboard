@@ -16,13 +16,13 @@ jobs:
       matrix:
         include:
           - platform: ubuntu-22.04
-            args: '--config build.beforeBuildCommand=""'
+            args: '--config {"build":{"beforeBuildCommand":""}}'
           - platform: macos-latest
-            args: '--target aarch64-apple-darwin --config build.beforeBuildCommand=""'
+            args: '--target aarch64-apple-darwin --config {"build":{"beforeBuildCommand":""}}'
           - platform: macos-latest
-            args: '--target x86_64-apple-darwin --config build.beforeBuildCommand=""'
+            args: '--target x86_64-apple-darwin --config {"build":{"beforeBuildCommand":""}}'
           - platform: windows-latest
-            args: '--config build.beforeBuildCommand=""'
+            args: '--config {"build":{"beforeBuildCommand":""}}'
 
     runs-on: ${{ matrix.platform }}
 
