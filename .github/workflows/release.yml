@@ -68,3 +68,5 @@ jobs:
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
+          projectPath: src-tauri
+          beforeBuildCommand: ''
