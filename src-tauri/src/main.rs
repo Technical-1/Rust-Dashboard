@@ -161,6 +161,9 @@ fn get_process_details(
 
 #[tauri::command]
 fn kill_process(state: tauri::State<'_, AppState>, pid: u32) -> Result<(), String> {
+    if pid <= 1 {
+        return Err("Cannot terminate system processes (PID 0 or 1)".to_string());
+    }
     let mut monitor = state.monitor.lock().map_err(|e| e.to_string())?;
     monitor.kill_process(pid)
 }
