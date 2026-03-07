@@ -252,6 +252,12 @@ fn export_to_file(data: String, path: String) -> Result<(), String> {
 fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
+    // Install panic hook for crash diagnostics under panic="abort"
+    std::panic::set_hook(Box::new(|info| {
+        log::error!("PANIC: {}", info);
+        eprintln!("PANIC: {}", info);
+    }));
+
     let config = AppConfig::load();
     let monitor = Arc::new(Mutex::new(SystemMonitor::new()));
     let refresh_interval = Arc::new(AtomicU32::new(config.refresh_interval_seconds));
