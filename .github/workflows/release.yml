@@ -60,11 +60,12 @@ jobs:
         run: cargo install tauri-cli --version "^2" --locked
 
       - name: Build Tauri app
+        working-directory: src-tauri
         run: |
           if [ -n "${{ matrix.target }}" ]; then
-            cargo tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} --config '{"build":{"beforeBuildCommand":""}}'
+            cargo tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} --config '{"build":{"beforeBuildCommand":"","frontendDist":"../ui/build"}}'
           else
-            cargo tauri build --bundles ${{ matrix.bundles }} --config '{"build":{"beforeBuildCommand":""}}'
+            cargo tauri build --bundles ${{ matrix.bundles }} --config '{"build":{"beforeBuildCommand":"","frontendDist":"../ui/build"}}'
           fi
         shell: bash
 
