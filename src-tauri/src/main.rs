@@ -239,9 +239,7 @@ fn export_to_file(data: String, path: String) -> Result<(), String> {
         return Err("Writes are only allowed within your home directory".to_string());
     }
 
-    let file_name = path_ref
-        .file_name()
-        .ok_or("Invalid filename")?;
+    let file_name = path_ref.file_name().ok_or("Invalid filename")?;
     let safe_path = canonical_parent.join(file_name);
 
     std::fs::write(&safe_path, data).map_err(|e| e.to_string())
@@ -278,7 +276,6 @@ fn main() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_os::init())
-
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .manage(app_state)
         .setup(move |app| {
@@ -286,7 +283,10 @@ fn main() {
 
             // --- Tray Icon with right-click menu ---
             let tray_handle = app_handle.clone();
-            let icon = app.default_window_icon().cloned().ok_or("No default window icon found")?;
+            let icon = app
+                .default_window_icon()
+                .cloned()
+                .ok_or("No default window icon found")?;
 
             let show_item = MenuItem::with_id(app, "show", "Show Dashboard", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
@@ -297,19 +297,17 @@ fn main() {
                 .tooltip("Rust Dashboard")
                 .menu(&tray_menu)
                 .show_menu_on_left_click(false)
-                .on_menu_event(move |app_handle, event| {
-                    match event.id.as_ref() {
-                        "show" => {
-                            if let Some(win) = app_handle.get_webview_window("main") {
-                                let _ = win.show();
-                                let _ = win.set_focus();
-                            }
+                .on_menu_event(move |app_handle, event| match event.id.as_ref() {
+                    "show" => {
+                        if let Some(win) = app_handle.get_webview_window("main") {
+                            let _ = win.show();
+                            let _ = win.set_focus();
                         }
-                        "quit" => {
-                            app_handle.exit(0);
-                        }
-                        _ => {}
                     }
+                    "quit" => {
+                        app_handle.exit(0);
+                    }
+                    _ => {}
                 })
                 .on_tray_icon_event(move |_tray, event| {
                     if let TrayIconEvent::Click {
@@ -329,11 +327,15 @@ fn main() {
 
                         // Convert tray icon rect to logical coordinates
                         let (icon_x, icon_y) = match rect.position {
-                            tauri::Position::Physical(p) => (p.x as f64 / scale, p.y as f64 / scale),
+                            tauri::Position::Physical(p) => {
+                                (p.x as f64 / scale, p.y as f64 / scale)
+                            }
                             tauri::Position::Logical(p) => (p.x, p.y),
                         };
                         let (icon_w, icon_h) = match rect.size {
-                            tauri::Size::Physical(s) => (s.width as f64 / scale, s.height as f64 / scale),
+                            tauri::Size::Physical(s) => {
+                                (s.width as f64 / scale, s.height as f64 / scale)
+                            }
                             tauri::Size::Logical(s) => (s.width, s.height),
                         };
 
