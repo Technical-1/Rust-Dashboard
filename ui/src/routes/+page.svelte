@@ -3,6 +3,7 @@
 	import { listen } from '@tauri-apps/api/event';
 	import { initSystemListener, destroySystemListener } from '$lib/stores/system';
 	import { loadConfig, activeView, sidebarCollapsed } from '$lib/stores/config';
+	import { logError } from '$lib/log';
 	import Sidebar from '$lib/components/Sidebar.svelte';
 	import TopBar from '$lib/components/TopBar.svelte';
 	import CpuPanel from '$lib/components/CpuPanel.svelte';
@@ -63,7 +64,7 @@
 				}
 			});
 		} catch (e) {
-			console.error('Failed to listen for merge-back events:', e);
+			logError('Failed to listen for merge-back events', e);
 		}
 	});
 

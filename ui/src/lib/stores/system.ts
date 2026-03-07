@@ -2,6 +2,7 @@ import { writable } from 'svelte/store';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import type { SystemSnapshot } from '$lib/types';
+import { logError } from '$lib/log';
 
 export const systemSnapshot = writable<SystemSnapshot | null>(null);
 export const cpuHistory = writable<[number, number][]>([]);
@@ -23,7 +24,7 @@ export async function initSystemListener() {
 		const memHist = await invoke<[number, number][]>('get_memory_history');
 		memoryHistory.set(memHist);
 	} catch (e) {
-		console.error('Failed to fetch initial data:', e);
+		logError('Failed to fetch initial data', e);
 		systemError.set(`Failed to connect to system monitor: ${e}`);
 	}
 
@@ -51,7 +52,7 @@ export async function initSystemListener() {
 			});
 		});
 	} catch (e) {
-		console.error('Failed to listen for system updates:', e);
+		logError('Failed to listen for system updates', e);
 		systemError.set('Failed to connect to system event stream');
 	}
 }

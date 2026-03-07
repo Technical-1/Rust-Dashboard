@@ -3,6 +3,7 @@
 	import { save } from '@tauri-apps/plugin-dialog';
 	import { systemSnapshot } from '$lib/stores/system';
 	import type { CombinedProcess } from '$lib/types';
+	import { logError } from '$lib/log';
 
 	let exporting = false;
 
@@ -43,7 +44,7 @@
 				await invoke('export_to_file', { data: jsonStr, path });
 			}
 		} catch (e) {
-			console.error('Export JSON failed:', e);
+			logError('Export JSON failed', e);
 		} finally {
 			exporting = false;
 		}
@@ -69,7 +70,7 @@
 				await invoke('export_to_file', { data: csv, path });
 			}
 		} catch (e) {
-			console.error('Export CSV failed:', e);
+			logError('Export CSV failed', e);
 		} finally {
 			exporting = false;
 		}
