@@ -2,7 +2,6 @@
 	import { invoke } from '@tauri-apps/api/core';
 	import { save } from '@tauri-apps/plugin-dialog';
 	import { systemSnapshot } from '$lib/stores/system';
-	import type { CombinedProcess } from '$lib/types';
 	import { logError } from '$lib/log';
 
 	let exporting = false;
@@ -19,7 +18,7 @@
 		if (!$systemSnapshot) return;
 		exporting = true;
 		try {
-			const processes = await invoke<CombinedProcess[]>('get_processes');
+			const processes = $systemSnapshot.processes;
 			const data = {
 				timestamp: Math.floor(Date.now() / 1000),
 				cpu_usage: $systemSnapshot.cpu_usage,
@@ -54,7 +53,7 @@
 		if (!$systemSnapshot) return;
 		exporting = true;
 		try {
-			const processes = await invoke<CombinedProcess[]>('get_processes');
+			const processes = $systemSnapshot.processes;
 			let csv = 'Type,Name,CPU Usage %,Memory MB,PIDs\n';
 			csv += `${csvEscape('System')},${csvEscape('CPU')},${$systemSnapshot.cpu_usage.toFixed(2)},,\n`;
 			csv += `${csvEscape('System')},${csvEscape('Memory')},,${Math.floor($systemSnapshot.memory.used / 1024 / 1024)},\n`;
