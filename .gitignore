@@ -3,6 +3,8 @@ src-tauri/target
 node_modules/
 ui/build/
 ui/.svelte-kit/
+ui/.vite/
+.DS_Store
 GITHUB_ISSUES.md
 GITHUB_ISSUE_FOLLOWUPS.md
 MACOS_SIGNING_SETUP.md
