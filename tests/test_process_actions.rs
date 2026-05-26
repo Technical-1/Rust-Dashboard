@@ -10,6 +10,23 @@ fn test_kill_process_invalid_pid() {
 }
 
 #[test]
+fn test_kill_process_rejects_pid_zero_and_one() {
+    let mut mon = SystemMonitor::new();
+    let err0 = mon.kill_process(0).expect_err("PID 0 must be rejected");
+    assert!(
+        err0.contains("system processes"),
+        "error should mention system processes, got: {}",
+        err0
+    );
+    let err1 = mon.kill_process(1).expect_err("PID 1 must be rejected");
+    assert!(
+        err1.contains("system processes"),
+        "error should mention system processes, got: {}",
+        err1
+    );
+}
+
+#[test]
 fn test_process_details_current_process() {
     let mon = SystemMonitor::new();
     let current_pid = std::process::id();

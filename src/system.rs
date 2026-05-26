@@ -384,6 +384,9 @@ impl SystemMonitor {
     /// // monitor.kill_process(12345)?;
     /// ```
     pub fn kill_process(&mut self, pid_val: u32) -> Result<(), String> {
+        if pid_val <= 1 {
+            return Err("Cannot terminate system processes (PID 0 or 1)".to_string());
+        }
         if let Some(process) = self.sys.processes().get(&sysinfo::Pid::from_u32(pid_val)) {
             if process.kill() {
                 Ok(())
