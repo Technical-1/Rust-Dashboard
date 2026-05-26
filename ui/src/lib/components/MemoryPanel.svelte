@@ -18,9 +18,17 @@
 	$: swapUsedGb = mem ? mem.swap_used / 1024 / 1024 / 1024 : 0;
 	$: swapTotalGb = mem ? mem.swap_total / 1024 / 1024 / 1024 : 0;
 
-	// Memory breakdown: App (used - cached), Cached (total - available - free roughly), Free
-	$: cachedGb = mem ? Math.max(0, totalGb - availableGb - (totalGb - availableGb - freeGb > 0 ? 0 : freeGb)) : 0;
-	$: appGb = mem ? Math.max(0, usedGb - cachedGb) : 0;
+	// Memory breakdown — three mutually-exclusive segments that sum to total:
+	//   Free:   completely-unused pages (sysinfo's free_memory)
+	//   Cached: reclaimable pages (file cache, buffers, inactive)
+	//             = available - free
+	//   App:    unreclaimable pages (anonymous/dirty pages from programs)
+	//             = total - available
+	// sysinfo's `available` follows the Linux MemAvailable convention; on
+	// macOS it's approximated as `free + inactive`, which is close enough
+	// for a UI breakdown.
+	$: cachedGb = mem ? Math.max(0, availableGb - freeGb) : 0;
+	$: appGb = mem ? Math.max(0, totalGb - availableGb) : 0;
 	$: appPercent = totalGb > 0 ? (appGb / totalGb) * 100 : 0;
 	$: cachedPercent = totalGb > 0 ? (cachedGb / totalGb) * 100 : 0;
 	$: freePercent = totalGb > 0 ? (freeGb / totalGb) * 100 : 0;
