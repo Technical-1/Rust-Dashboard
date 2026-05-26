@@ -179,8 +179,13 @@ fn set_refresh_interval(state: tauri::State<'_, AppState>, seconds: u32) {
 }
 
 #[tauri::command]
-fn set_paused(state: tauri::State<'_, AppState>, paused: bool) {
+fn set_paused(state: tauri::State<'_, AppState>, app_handle: tauri::AppHandle, paused: bool) {
     state.paused.store(paused, Ordering::Release);
+    // Broadcast to all windows (including detached panels and the tray
+    // popup) so each window's frontend can react locally — Svelte stores
+    // are per-window, so the main window's paused store doesn't otherwise
+    // propagate to the tray.
+    let _ = app_handle.emit("paused-changed", paused);
 }
 
 #[tauri::command]
@@ -215,7 +220,12 @@ fn save_config(config: AppConfig) -> Result<(), String> {
 #[tauri::command]
 fn tray_refresh(state: tauri::State<'_, AppState>) -> Result<SystemSnapshot, String> {
     let mut monitor = state.monitor.lock().map_err(|e| e.to_string())?;
-    monitor.refresh();
+    // Respect the global paused state. When paused, return a snapshot of
+    // the current cached data without refreshing — matches the freeze that
+    // the background thread observes and avoids unnecessary mutex hold time.
+    if !state.paused.load(Ordering::Acquire) {
+        monitor.refresh();
+    }
     Ok(build_snapshot(&monitor))
 }
 

@@ -14,8 +14,18 @@
 	let snapshot: SystemSnapshot | null = null;
 	let refreshTimer: ReturnType<typeof setInterval> | null = null;
 	let unlistenVisible: (() => void) | null = null;
+	let unlistenPaused: (() => void) | null = null;
+	// Local pause state for this window. Tauri webviews each have their own
+	// Svelte runtime, so the main window's `paused` store doesn't propagate
+	// here. We seed from the backend (paused starts false at app launch
+	// since it's not persisted to AppConfig) and update from the
+	// "paused-changed" event emitted by set_paused on every toggle.
+	let pausedLocal = false;
 
 	async function doRefresh() {
+		// Skip the IPC call entirely when paused — avoids both wasted work
+		// and mutex contention with the background thread.
+		if (pausedLocal) return;
 		try {
 			snapshot = await invoke<SystemSnapshot>('tray_refresh');
 		} catch (e) {
@@ -50,6 +60,12 @@
 			}
 		});
 
+		// Listen for global paused-changed events. Updates pausedLocal so
+		// the next doRefresh tick respects the new state.
+		unlistenPaused = await listen<boolean>('paused-changed', (event) => {
+			pausedLocal = event.payload;
+		});
+
 		// Start immediately — popup is visible when first mounted
 		startRefresh();
 	});
@@ -59,6 +75,10 @@
 		if (unlistenVisible) {
 			unlistenVisible();
 			unlistenVisible = null;
+		}
+		if (unlistenPaused) {
+			unlistenPaused();
+			unlistenPaused = null;
 		}
 	});
 
