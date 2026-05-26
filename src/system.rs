@@ -11,6 +11,11 @@ pub struct SystemMonitor {
     pub networks: Networks,
     pub last_disk_refresh: std::time::Instant,
     pub last_network_refresh: std::time::Instant,
+    /// Duration captured at the most recent network refresh — the actual
+    /// interval between the previous and current refresh. Used as the
+    /// denominator for rate calculations so the answer doesn't depend on
+    /// when `network_info_with_rates` is queried relative to the refresh.
+    pub last_network_interval: std::time::Duration,
     pub last_network_snapshot: HashMap<String, (u64, u64)>,
     pub cached_processes: Vec<CombinedProcess>,
 }
@@ -57,6 +62,12 @@ impl SystemMonitor {
             networks,
             last_disk_refresh: std::time::Instant::now(),
             last_network_refresh: std::time::Instant::now(),
+            // Seed with the refresh threshold so the first computed rate
+            // (before any refresh has happened) uses a reasonable denominator
+            // rather than zero. Snapshot is empty on first call regardless,
+            // so the returned rate is 0.0 — this seed only matters if
+            // someone queries between construction and the first refresh.
+            last_network_interval: std::time::Duration::from_secs(5),
             last_network_snapshot: HashMap::new(),
             cached_processes: Vec::new(),
         };
@@ -92,6 +103,12 @@ impl SystemMonitor {
         }
         // Only refresh networks every 5 seconds to reduce overhead
         if self.last_network_refresh.elapsed() >= std::time::Duration::from_secs(5) {
+            let now = std::time::Instant::now();
+            // Capture the actual interval before resetting the timestamp,
+            // so rate calculations divide by the real elapsed time between
+            // refreshes — not by "time since last refresh" which is ~0 right
+            // after a refresh and produces inflated rates.
+            self.last_network_interval = now.duration_since(self.last_network_refresh);
             // Capture pre-refresh totals for rate calculation
             for (iface, data) in self.networks.iter() {
                 self.last_network_snapshot.insert(
@@ -100,7 +117,7 @@ impl SystemMonitor {
                 );
             }
             self.networks.refresh(false);
-            self.last_network_refresh = std::time::Instant::now();
+            self.last_network_refresh = now;
         }
 
         self.sys.refresh_processes_specifics(
@@ -227,7 +244,10 @@ impl SystemMonitor {
     /// Returns (iface_name, total_rx, total_tx, rx_rate_bytes_per_sec, tx_rate_bytes_per_sec).
     /// Rates are calculated from the delta since the last network snapshot.
     pub fn network_info_with_rates(&self) -> Vec<(String, u64, u64, f64, f64)> {
-        let elapsed = self.last_network_refresh.elapsed().as_secs_f64();
+        // Use the interval captured at refresh time, not the elapsed time
+        // since refresh. The latter approaches zero immediately after a
+        // refresh and produced inflated rate spikes (delta / tiny).
+        let dt = self.last_network_interval.as_secs_f64().max(0.1);
         let mut out = Vec::new();
         for (iface, data) in self.networks.iter() {
             let total_rx = data.total_received();
@@ -236,7 +256,6 @@ impl SystemMonitor {
             if usage > 0 {
                 let (rx_rate, tx_rate) =
                     if let Some(&(prev_rx, prev_tx)) = self.last_network_snapshot.get(iface) {
-                        let dt = elapsed.max(0.1); // avoid division by zero
                         let rx_delta = total_rx.saturating_sub(prev_rx);
                         let tx_delta = total_tx.saturating_sub(prev_tx);
                         (rx_delta as f64 / dt, tx_delta as f64 / dt)

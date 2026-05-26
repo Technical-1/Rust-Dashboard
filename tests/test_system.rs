@@ -198,6 +198,26 @@ fn test_network_info_format() {
 }
 
 #[test]
+fn test_network_rates_are_finite_and_non_negative() {
+    let mut mon = SystemMonitor::new();
+    mon.refresh();
+    for (iface, _rx, _tx, rx_rate, tx_rate) in mon.network_info_with_rates() {
+        assert!(
+            rx_rate.is_finite() && rx_rate >= 0.0,
+            "{} rx_rate must be finite and non-negative, got {}",
+            iface,
+            rx_rate
+        );
+        assert!(
+            tx_rate.is_finite() && tx_rate >= 0.0,
+            "{} tx_rate must be finite and non-negative, got {}",
+            iface,
+            tx_rate
+        );
+    }
+}
+
+#[test]
 fn test_cpu_usage_consistency() {
     let mut mon = SystemMonitor::new();
     let cpu1 = mon.global_cpu_usage();
