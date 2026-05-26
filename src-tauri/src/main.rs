@@ -239,16 +239,42 @@ fn export_to_file(data: String, path: String) -> Result<(), String> {
         _ => return Err("Only .json and .csv file extensions are allowed".to_string()),
     }
 
-    // Canonicalize the parent directory (file may not exist yet)
     let parent = path_ref
         .parent()
         .ok_or("Invalid path: no parent directory")?;
-    let canonical_parent = parent
+
+    // The save dialog may produce a path under a subdirectory that doesn't
+    // exist yet (e.g. ~/Exports/2026-05/dashboard.json). Walk up until we
+    // find an existing ancestor; canonicalize and security-check THAT
+    // ancestor. This preserves the path-traversal protection while letting
+    // us create intermediate directories on demand.
+    let home = dirs::home_dir().ok_or("Cannot determine home directory")?;
+    let mut existing_ancestor = parent;
+    while !existing_ancestor.exists() {
+        existing_ancestor = existing_ancestor
+            .parent()
+            .ok_or("Cannot resolve path: no existing ancestor under root")?;
+    }
+    let canonical_ancestor = existing_ancestor
         .canonicalize()
         .map_err(|e| format!("Cannot resolve path: {}", e))?;
+    if !canonical_ancestor.starts_with(&home) {
+        return Err("Writes are only allowed within your home directory".to_string());
+    }
 
-    // Allow only writes under the user's home directory
-    let home = dirs::home_dir().ok_or("Cannot determine home directory")?;
+    // Create any missing intermediate directories under the verified-safe
+    // ancestor. create_dir_all never creates symlinks, so the new
+    // components inherit the ancestor's safety.
+    std::fs::create_dir_all(parent).map_err(|e| format!("Cannot create directory: {}", e))?;
+
+    // Defense-in-depth: re-canonicalize after creation. This resolves any
+    // `..` components in the original path (Path::parent is lexical and
+    // doesn't, so a malicious path like ~/foo/../../etc/file.json would
+    // walk up to ~/foo as an existing ancestor and pass the first check,
+    // but resolve to /etc here and fail the second).
+    let canonical_parent = parent
+        .canonicalize()
+        .map_err(|e| format!("Cannot resolve path after creating directories: {}", e))?;
     if !canonical_parent.starts_with(&home) {
         return Err("Writes are only allowed within your home directory".to_string());
     }
