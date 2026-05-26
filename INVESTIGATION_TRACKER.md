@@ -266,7 +266,7 @@ Lowest risk, smallest review burden. Batch into a single PR at the end.
 | ID | Title | Area | Severity | Status | Hub ID |
 |----|-------|------|----------|--------|--------|
 | INV-001 | CI security audit bypassed by `continue-on-error` and `\|\| true` | AREA-3 | HIGH | Fixed | #424 |
-| INV-002 | Library `SystemMonitor::kill_process` lacks PID guard | AREA-1 | HIGH | Open | #425 |
+| INV-002 | Library `SystemMonitor::kill_process` lacks PID guard | AREA-1 | HIGH | Fixed | #425 |
 | INV-003 | `tauri.conf.json` missing `bundle` section breaks local builds | AREA-3 | HIGH | Fixed | #426 |
 | INV-004 | `test_config_save_and_load` pollutes real user config dir | AREA-6 | MEDIUM | Open | #427 |
 | INV-005 | Background thread sleep up to 60s delays interval/pause changes | AREA-2 | MEDIUM | Open | #428 |
@@ -281,10 +281,10 @@ Lowest risk, smallest review burden. Batch into a single PR at the end.
 | INV-014 | Stale placeholder author/repository fields in `Cargo.toml` | AREA-3 | LOW | Fixed | #437 |
 | INV-015 | Dead assertion `memory_usage >= 0` on `u64` type | AREA-6 | LOW | Open | #438 |
 | INV-016 | `DiskPanel` and `NetworkPanel` `{#each}` blocks lack keys | AREA-5 | LOW | Open | #439 |
-| INV-017 | `network_info_with_rates` rates inflate immediately post-refresh | AREA-1 | LOW | Open | #440 |
-| INV-018 | Unused legacy `network_info()` duplicates `network_info_with_rates` | AREA-1 | LOW | Open | #441 |
+| INV-017 | `network_info_with_rates` rates inflate immediately post-refresh | AREA-1 | LOW | Fixed | #440 |
+| INV-018 | Unused legacy `network_info()` duplicates `network_info_with_rates` | AREA-1 | LOW | Fixed | #441 |
 | INV-019 | `cpuHistory` / `memoryHistory` updates mutate same array reference | AREA-5 | LOW | Open | #442 |
-| INV-020 | `combined_process_list().to_vec()` clones full list every snapshot | AREA-1 | LOW | Open | #443 |
+| INV-020 | `combined_process_list().to_vec()` clones full list every snapshot | AREA-1 | LOW | Won't Fix | #443 |
 | INV-021 | `export_to_file` fails when target parent dir doesn't exist | AREA-2 | LOW | Open | #444 |
 | INV-022 | Main window has no explicit `label` in `tauri.conf.json` | AREA-3 | LOW | Fixed | #445 |
 | INV-023 | Remediate current dependency CVEs (1 Rust + 8 npm) — discovered during INV-001 | AREA-3 | HIGH | Fixed | #469 |
@@ -319,7 +319,7 @@ PRODUCTION_READINESS.md states H6 is resolved and the README's Security section 
 ### INV-002: Library `SystemMonitor::kill_process` lacks PID guard
 
 - **Severity**: HIGH
-- **Status**: Open
+- **Status**: Fixed (b0ce027)
 - **Files**: `src/system.rs:386-396`, `src-tauri/src/main.rs:163` (existing guard)
 - **Related**: PRODUCTION_READINESS H3 (marked Fixed)
 - **Hub ID**: #425
@@ -339,7 +339,7 @@ if pid_val <= 1 {
 ```
 Then remove the duplicate guard in `main.rs:163-165` or keep it as a redundant outer check.
 
-**Resolution:** _pending_
+**Resolution:** Fixed in commit `b0ce027` (2026-05-26). PID guard added at the top of the library method; Tauri command wrapper guard kept as defense in depth. New test `test_kill_process_rejects_pid_zero_and_one` verifies both PIDs return errors mentioning "system processes".
 
 ---
 
@@ -709,7 +709,7 @@ Minor visual glitch. Progress bar widths may animate to wrong values if a disk s
 ### INV-017: `network_info_with_rates` rates inflate immediately post-refresh
 
 - **Severity**: LOW
-- **Status**: Open
+- **Status**: Fixed (62f8bf6)
 - **Files**: `src/system.rs:229-250`
 - **Hub ID**: #440
 
@@ -722,14 +722,14 @@ The first emit immediately after a network refresh shows inflated rx_rate / tx_r
 **Suggested fix:**
 Store the actual interval between the previous snapshot and the current refresh — e.g., save `last_network_interval: Duration` when refreshing, and use that constant value in `network_info_with_rates` until the next refresh.
 
-**Resolution:** _pending_
+**Resolution:** Fixed in commit `62f8bf6` (2026-05-26). New `last_network_interval` field on `SystemMonitor` captures the actual interval at refresh time before resetting `last_network_refresh`; `network_info_with_rates` now divides by this stable constant. Seeded to 5s at construction. New test `test_network_rates_are_finite_and_non_negative` checks for NaN/infinity/negative rates.
 
 ---
 
 ### INV-018: Unused legacy `network_info()` duplicates `network_info_with_rates`
 
 - **Severity**: LOW
-- **Status**: Open
+- **Status**: Fixed (b1862ad)
 - **Files**: `src/system.rs:210-223`
 - **Hub ID**: #441
 
@@ -744,7 +744,7 @@ Either:
 - Remove `network_info()` and update the example to use `network_info_with_rates` with destructuring.
 - Implement `network_info()` as a thin wrapper over `network_info_with_rates` that drops the rate fields.
 
-**Resolution:** _pending_
+**Resolution:** Fixed in commit `b1862ad` (2026-05-26) via the thin-wrapper option. The v2.x public API surface is preserved (decision recorded in AREA-1 spec — library is considered stable on 2.x, breaking removal deferred to a possible 3.0). Single source of truth for the iteration and `usage > 0` filter.
 
 ---
 
@@ -784,7 +784,7 @@ cpuHistory.update((hist) => {
 ### INV-020: `combined_process_list().to_vec()` clones full list every snapshot
 
 - **Severity**: LOW
-- **Status**: Open
+- **Status**: Won't Fix (decision recorded 2026-05-26)
 - **Files**: `src-tauri/src/main.rs:131`, `src/system.rs:280-282`
 - **Hub ID**: #443
 
@@ -797,7 +797,7 @@ Wasted CPU. Not a correctness issue, but the dashboard exists to *show* CPU usag
 **Suggested fix:**
 Have `SystemMonitor` cache a serialized snapshot alongside `cached_processes`, or change `SystemSnapshot` to borrow with a lifetime (more invasive). Lowest-effort fix: do the clone only when emitting and skip it for command handlers that could borrow.
 
-**Resolution:** _pending_
+**Resolution: Won't Fix** (decision recorded 2026-05-26 during AREA-1 spec review). Closing as premature optimization — the clone cost is theoretical until measured on real hardware. If a perf concern emerges in practice (e.g. a user reports high self-CPU at small refresh intervals on a system with many processes), reopen by filing a fresh task referencing this resolution. The cited fix paths (lifetime threading, pre-serialized snapshots) are invasive and not worth the design cost without a confirmed problem.
 
 ---
 
@@ -934,3 +934,4 @@ Confirmed during investigation as either already-fixed or false positives. Recor
 | 2026-05-26 | Bucketed findings into 6 Implementation Areas (AREA-1 through AREA-6); tagged all Hub tasks with their area; replaced severity-based fix order with area-based phasing | Claude |
 | 2026-05-26 | Started AREA-3 with INV-001. Pre-validation discovered 9 hidden CVEs (1 Rust + 8 npm) that the bypass had been masking. Created INV-023 (#469) as a blocker for INV-001. INV-023 implementation complete (cargo update -p bytes; npm audit fix): all validations green. INV-001 implementation complete (CI yaml bypasses removed): both audits exit 0 with the new config. Both tasks in_progress in Hub, awaiting commit. | Claude |
 | 2026-05-26 | **AREA-3 fully resolved (5/5 findings)**. Commits: INV-023 `c987db5`, INV-001 `5a40357`, INV-003 `f53fdfc`, INV-022 `de724ef`, INV-014 `c812ad3`. CI now enforces audits; local `cargo tauri build` produces installers without --config overrides; Cargo metadata accurate; window label explicit. Hub: 5 resolved, 0 in progress, 18 open. | Claude |
+| 2026-05-26 | **AREA-1 fully resolved (4/4 findings, 3 fixed + 1 won't-fix)**. Spec decisions: API stable on v2.x (no breaking changes); keep `String` error type for now (defer richer errors to a future API-evolution task); INV-020 closed as premature optimization. Commits: INV-002 `b0ce027`, INV-017 `62f8bf6`, INV-018 `b1862ad`. Library now refuses PID 0/1, network rates are stable post-refresh, `network_info` is a single-source-of-truth wrapper. Hub: 8 resolved, 0 in progress, 15 open. | Claude |
