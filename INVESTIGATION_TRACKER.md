@@ -265,9 +265,9 @@ Lowest risk, smallest review burden. Batch into a single PR at the end.
 
 | ID | Title | Area | Severity | Status | Hub ID |
 |----|-------|------|----------|--------|--------|
-| INV-001 | CI security audit bypassed by `continue-on-error` and `\|\| true` | AREA-3 | HIGH | In Progress | #424 |
+| INV-001 | CI security audit bypassed by `continue-on-error` and `\|\| true` | AREA-3 | HIGH | Fixed | #424 |
 | INV-002 | Library `SystemMonitor::kill_process` lacks PID guard | AREA-1 | HIGH | Open | #425 |
-| INV-003 | `tauri.conf.json` missing `bundle` section breaks local builds | AREA-3 | HIGH | Open | #426 |
+| INV-003 | `tauri.conf.json` missing `bundle` section breaks local builds | AREA-3 | HIGH | Fixed | #426 |
 | INV-004 | `test_config_save_and_load` pollutes real user config dir | AREA-6 | MEDIUM | Open | #427 |
 | INV-005 | Background thread sleep up to 60s delays interval/pause changes | AREA-2 | MEDIUM | Open | #428 |
 | INV-006 | Mutex poisoning recovery never emits user-visible error | AREA-2 | MEDIUM | Open | #429 |
@@ -278,7 +278,7 @@ Lowest risk, smallest review burden. Batch into a single PR at the end.
 | INV-011 | Kill button only terminates first PID of multi-instance process | AREA-4 | MEDIUM | Open | #434 |
 | INV-012 | `ContextMenu` can leak click listener if unmounted within 10ms | AREA-6 | LOW | Open | #435 |
 | INV-013 | `HistoryChart` throttle drops alternating updates at 1s interval | AREA-5 | LOW | Open | #436 |
-| INV-014 | Stale placeholder author/repository fields in `Cargo.toml` | AREA-3 | LOW | Open | #437 |
+| INV-014 | Stale placeholder author/repository fields in `Cargo.toml` | AREA-3 | LOW | Fixed | #437 |
 | INV-015 | Dead assertion `memory_usage >= 0` on `u64` type | AREA-6 | LOW | Open | #438 |
 | INV-016 | `DiskPanel` and `NetworkPanel` `{#each}` blocks lack keys | AREA-5 | LOW | Open | #439 |
 | INV-017 | `network_info_with_rates` rates inflate immediately post-refresh | AREA-1 | LOW | Open | #440 |
@@ -286,8 +286,8 @@ Lowest risk, smallest review burden. Batch into a single PR at the end.
 | INV-019 | `cpuHistory` / `memoryHistory` updates mutate same array reference | AREA-5 | LOW | Open | #442 |
 | INV-020 | `combined_process_list().to_vec()` clones full list every snapshot | AREA-1 | LOW | Open | #443 |
 | INV-021 | `export_to_file` fails when target parent dir doesn't exist | AREA-2 | LOW | Open | #444 |
-| INV-022 | Main window has no explicit `label` in `tauri.conf.json` | AREA-3 | LOW | Open | #445 |
-| INV-023 | Remediate current dependency CVEs (1 Rust + 8 npm) — discovered during INV-001 | AREA-3 | HIGH | In Progress | #469 |
+| INV-022 | Main window has no explicit `label` in `tauri.conf.json` | AREA-3 | LOW | Fixed | #445 |
+| INV-023 | Remediate current dependency CVEs (1 Rust + 8 npm) — discovered during INV-001 | AREA-3 | HIGH | Fixed | #469 |
 
 ---
 
@@ -296,7 +296,7 @@ Lowest risk, smallest review burden. Batch into a single PR at the end.
 ### INV-001: CI security audit bypassed by `continue-on-error` and `|| true`
 
 - **Severity**: HIGH
-- **Status**: Open
+- **Status**: Fixed (5a40357)
 - **Files**: `.github/workflows/ci.yml:61-68`
 - **Related**: PRODUCTION_READINESS H6 (marked Fixed)
 - **Hub ID**: #424
@@ -312,7 +312,7 @@ PRODUCTION_READINESS.md states H6 is resolved and the README's Security section 
 - Drop `|| true` from the `npm audit` invocation.
 - Keep `|| true` on `cargo install cargo-audit --locked` only (tolerates cache hits where the binary is already installed).
 
-**Resolution:** _pending_
+**Resolution:** Fixed in commit `5a40357` (2026-05-26). Both audits now exit 0 on current tree; CI will fail on future CVE detections at moderate+ severity. Prerequisite INV-023 cleaned the dependency state first.
 
 ---
 
@@ -346,7 +346,7 @@ Then remove the duplicate guard in `main.rs:163-165` or keep it as a redundant o
 ### INV-003: `tauri.conf.json` missing `bundle` section breaks local builds
 
 - **Severity**: HIGH
-- **Status**: Open
+- **Status**: Fixed (f53fdfc)
 - **Files**: `src-tauri/tauri.conf.json`, `.github/workflows/release.yml:21-33` (uses `--config` override)
 - **Hub ID**: #426
 
@@ -365,7 +365,7 @@ Add a `bundle` section to `tauri.conf.json` with:
 
 Verify CI still passes — the `--config` overrides may need to be removed or made additive.
 
-**Resolution:** _pending_
+**Resolution:** Fixed in commit `f53fdfc` (2026-05-26). Added bundle section to tauri.conf.json (active: true, targets: "all", full icon array, DeveloperTool category, descriptions). Generated `src-tauri/icons/icon.icns` from `icon.png` via `cargo tauri icon` to a temp dir, copied just the icns to preserve existing PNG icons. Removed all `tauri_config` matrix fields and `--config` flags from release.yml. Validated locally: `cargo tauri build --debug --bundles dmg` produces a 5.2 MB dmg.
 
 ---
 
@@ -642,7 +642,7 @@ Change to `>=` or lower the threshold to 900ms. Alternatively, remove the thrott
 ### INV-014: Stale placeholder author/repository fields in `Cargo.toml`
 
 - **Severity**: LOW
-- **Status**: Open
+- **Status**: Fixed (c812ad3)
 - **Files**: `Cargo.toml:9, 12`
 - **Hub ID**: #437
 
@@ -659,7 +659,7 @@ Would block any future `cargo publish`. Misleading metadata for anyone consuming
 **Suggested fix:**
 Update to actual values. Consider adding contact email of choice (or remove the email entirely — Cargo permits `["Name"]` without email).
 
-**Resolution:** _pending_
+**Resolution:** Fixed in commit `c812ad3` (2026-05-26). `authors = ["Jacob Kanfer"]` (no email per Cargo's permitted name-only form), `repository = "https://github.com/Technical-1/Rust-Dashboard"`.
 
 ---
 
@@ -824,7 +824,7 @@ Walk up the path until we find an existing ancestor, canonicalize *that*, then c
 ### INV-022: Main window has no explicit `label` in `tauri.conf.json`
 
 - **Severity**: LOW
-- **Status**: Open
+- **Status**: Fixed (de724ef)
 - **Files**: `src-tauri/tauri.conf.json:12-23`, `src-tauri/capabilities/main.json:4`
 - **Hub ID**: #445
 
@@ -837,14 +837,14 @@ Implicit coupling. If a future Tauri version changes the default label, or a dev
 **Suggested fix:**
 Add `"label": "main"` explicitly to the window object in `tauri.conf.json`.
 
-**Resolution:** _pending_
+**Resolution:** Fixed in commit `de724ef` (2026-05-26). `"label": "main"` added to the window definition; `cargo check` validates clean.
 
 ---
 
 ### INV-023: Remediate current dependency CVEs (1 Rust + 8 npm)
 
 - **Severity**: HIGH
-- **Status**: In Progress (implementation complete, awaiting commit)
+- **Status**: Fixed (c987db5)
 - **Files**: `Cargo.lock`, `ui/package-lock.json`
 - **Discovered during**: INV-001 pre-validation
 - **Blocks**: INV-001 (#424)
@@ -877,7 +877,7 @@ Without addressing these, INV-001's fix can't ship — CI would fail immediately
 - `cd ui && npm run check` → 0 errors, 0 warnings.
 - `cd ui && npm run build` → built in 1.33s.
 
-**Resolution:** _pending commit_
+**Resolution:** Fixed in commit `c987db5` (2026-05-26). `cargo update -p bytes` bumped Cargo.lock to bytes 1.11.1. `npm audit fix` rewrote ui/package-lock.json with patched transitive versions; no top-level package bumps. 3 low-severity cookie CVEs in the SvelteKit tree remain — they fall below the moderate threshold so CI now passes cleanly.
 
 ---
 
@@ -933,3 +933,4 @@ Confirmed during investigation as either already-fixed or false positives. Recor
 | 2026-05-26 | Bulk-imported all 22 findings to Project Hub (project 32, task IDs #424–#445); Hub IDs populated in this doc | Claude |
 | 2026-05-26 | Bucketed findings into 6 Implementation Areas (AREA-1 through AREA-6); tagged all Hub tasks with their area; replaced severity-based fix order with area-based phasing | Claude |
 | 2026-05-26 | Started AREA-3 with INV-001. Pre-validation discovered 9 hidden CVEs (1 Rust + 8 npm) that the bypass had been masking. Created INV-023 (#469) as a blocker for INV-001. INV-023 implementation complete (cargo update -p bytes; npm audit fix): all validations green. INV-001 implementation complete (CI yaml bypasses removed): both audits exit 0 with the new config. Both tasks in_progress in Hub, awaiting commit. | Claude |
+| 2026-05-26 | **AREA-3 fully resolved (5/5 findings)**. Commits: INV-023 `c987db5`, INV-001 `5a40357`, INV-003 `f53fdfc`, INV-022 `de724ef`, INV-014 `c812ad3`. CI now enforces audits; local `cargo tauri build` produces installers without --config overrides; Cargo metadata accurate; window label explicit. Hub: 5 resolved, 0 in progress, 18 open. | Claude |
