@@ -432,6 +432,13 @@ fn main() {
             let memory_history = memory_history.clone();
 
             std::thread::spawn(move || {
+                // Track whether we've already emitted a system-error for
+                // mutex poisoning. std::sync::Mutex has no stable API to
+                // clear poison, so subsequent lock() calls all return Err.
+                // Emitting once per detection would cause the error banner
+                // to flicker on every loop iteration after recovery. Emit
+                // once on the first detection, then stay silent.
+                let mut poison_alerted = false;
                 loop {
                     let interval_secs = refresh_interval.load(Ordering::Acquire);
                     let was_paused = paused.load(Ordering::Acquire);
@@ -440,6 +447,13 @@ fn main() {
                         let snapshot = {
                             let mut mon = monitor.lock().unwrap_or_else(|e| {
                                 log::warn!("Monitor mutex was poisoned, recovering: {}", e);
+                                if !poison_alerted {
+                                    let _ = bg_handle.emit(
+                                        "system-error",
+                                        "Monitor recovered from internal error — data may be temporarily stale",
+                                    );
+                                    poison_alerted = true;
+                                }
                                 e.into_inner()
                             });
                             mon.refresh();

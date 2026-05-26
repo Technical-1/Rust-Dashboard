@@ -10,6 +10,7 @@ export const memoryHistory = writable<[number, number][]>([]);
 export const systemError = writable<string | null>(null);
 
 let unlisten: (() => void) | null = null;
+let unlistenError: (() => void) | null = null;
 
 export async function initSystemListener() {
 	// Fetch initial data
@@ -55,11 +56,27 @@ export async function initSystemListener() {
 		logError('Failed to listen for system updates', e);
 		systemError.set('Failed to connect to system event stream');
 	}
+
+	// Listen for explicit system-error events from the backend (e.g.
+	// mutex-poisoning recovery). The next successful system-update will
+	// auto-clear systemError, so the banner disappears once the
+	// monitor is healthy again.
+	try {
+		unlistenError = await listen<string>('system-error', (event) => {
+			systemError.set(event.payload);
+		});
+	} catch (e) {
+		logError('Failed to listen for system-error events', e);
+	}
 }
 
 export function destroySystemListener() {
 	if (unlisten) {
 		unlisten();
 		unlisten = null;
+	}
+	if (unlistenError) {
+		unlistenError();
+		unlistenError = null;
 	}
 }
