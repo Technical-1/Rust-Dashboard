@@ -268,18 +268,18 @@ Lowest risk, smallest review burden. Batch into a single PR at the end.
 | INV-001 | CI security audit bypassed by `continue-on-error` and `\|\| true` | AREA-3 | HIGH | Fixed | #424 |
 | INV-002 | Library `SystemMonitor::kill_process` lacks PID guard | AREA-1 | HIGH | Fixed | #425 |
 | INV-003 | `tauri.conf.json` missing `bundle` section breaks local builds | AREA-3 | HIGH | Fixed | #426 |
-| INV-004 | `test_config_save_and_load` pollutes real user config dir | AREA-6 | MEDIUM | Open | #427 |
+| INV-004 | `test_config_save_and_load` pollutes real user config dir | AREA-6 | MEDIUM | Fixed | #427 |
 | INV-005 | Background thread sleep up to 60s delays interval/pause changes | AREA-2 | MEDIUM | Fixed | #428 |
 | INV-006 | Mutex poisoning recovery never emits user-visible error | AREA-2 | MEDIUM | Fixed | #429 |
-| INV-007 | Unused `@tauri-apps/plugin-fs` npm dep left after H2 fix | AREA-6 | MEDIUM | Open | #430 |
+| INV-007 | Unused `@tauri-apps/plugin-fs` npm dep left after H2 fix | AREA-6 | MEDIUM | Fixed | #430 |
 | INV-008 | TrayPopup ignores global `paused` state | AREA-2 | MEDIUM | Fixed | #431 |
 | INV-009 | `MemoryPanel` App/Cached breakdown math is incorrect | AREA-5 | MEDIUM | Fixed | #432 |
 | INV-010 | `ProcessRow` keeps stale details after `process.pids[0]` changes | AREA-4 | MEDIUM | Fixed | #433 |
 | INV-011 | Kill button only terminates first PID of multi-instance process | AREA-4 | MEDIUM | Fixed | #434 |
-| INV-012 | `ContextMenu` can leak click listener if unmounted within 10ms | AREA-6 | LOW | Open | #435 |
+| INV-012 | `ContextMenu` can leak click listener if unmounted within 10ms | AREA-6 | LOW | Fixed | #435 |
 | INV-013 | `HistoryChart` throttle drops alternating updates at 1s interval | AREA-5 | LOW | Fixed | #436 |
 | INV-014 | Stale placeholder author/repository fields in `Cargo.toml` | AREA-3 | LOW | Fixed | #437 |
-| INV-015 | Dead assertion `memory_usage >= 0` on `u64` type | AREA-6 | LOW | Open | #438 |
+| INV-015 | Dead assertion `memory_usage >= 0` on `u64` type | AREA-6 | LOW | Fixed | #438 |
 | INV-016 | `DiskPanel` and `NetworkPanel` `{#each}` blocks lack keys | AREA-5 | LOW | Fixed | #439 |
 | INV-017 | `network_info_with_rates` rates inflate immediately post-refresh | AREA-1 | LOW | Fixed | #440 |
 | INV-018 | Unused legacy `network_info()` duplicates `network_info_with_rates` | AREA-1 | LOW | Fixed | #441 |
@@ -374,7 +374,7 @@ Verify CI still passes — the `--config` overrides may need to be removed or ma
 ### INV-004: `test_config_save_and_load` pollutes real user config dir
 
 - **Severity**: MEDIUM
-- **Status**: Open
+- **Status**: Fixed (302e067)
 - **Files**: `tests/test_config.rs:11-27`, `src/config.rs:29-36`
 - **Hub ID**: #427
 
@@ -387,7 +387,7 @@ Running the test suite resets the user's interval/theme settings. Concurrent run
 **Suggested fix:**
 Refactor `AppConfig::save`/`load` to accept an explicit path parameter (existing methods can call the new ones with the default path). Tests then pass a `tempfile::tempdir()`-derived path. Alternatively, override `dirs::config_dir` for tests using an env-var-driven path.
 
-**Resolution:** _pending_
+**Resolution:** Fixed in commit `302e067` (2026-05-26). Added `AppConfig::load_from(&Path)` and `save_to(&Path)` alongside existing methods (which now delegate). Added `tempfile = "3"` as a dev-dependency. `test_config_save_and_load` now uses `tempfile::tempdir()`; new `test_config_load_from_missing_returns_default` covers the fallback case. test_config_path_exists kept as-is since it intentionally exercises the side-effect of `config_path()`. Tests run in 0.00s now (was ~1s).
 
 ---
 
@@ -449,7 +449,7 @@ Add a frontend listener in `stores/system.ts` for the `system-error` event that 
 ### INV-007: Unused `@tauri-apps/plugin-fs` npm dep left after H2 fix
 
 - **Severity**: MEDIUM
-- **Status**: Open
+- **Status**: Fixed (ddcc896)
 - **Files**: `ui/package.json:25`, `ui/package-lock.json`
 - **Related**: PRODUCTION_READINESS H2 (marked Fixed)
 - **Hub ID**: #430
@@ -466,7 +466,7 @@ cd ui && npm uninstall @tauri-apps/plugin-fs
 ```
 Then commit the updated `package.json` and `package-lock.json`.
 
-**Resolution:** _pending_
+**Resolution:** Fixed in commit `ddcc896` (2026-05-26). npm uninstall removed the dependency from both package.json and package-lock.json (-11 lines net). Post-uninstall: npm run build ok, npm run check 0 errors, npm audit --audit-level=moderate exit 0.
 
 ---
 
@@ -581,7 +581,7 @@ Option A matches user intuition; Option B sets expectations correctly.
 ### INV-012: `ContextMenu` can leak click listener if unmounted within 10ms
 
 - **Severity**: LOW
-- **Status**: Open
+- **Status**: Fixed (8ad52e8)
 - **Files**: `ui/src/lib/components/ContextMenu.svelte:17-26`
 - **Hub ID**: #435
 
@@ -615,7 +615,7 @@ onDestroy(() => {
 });
 ```
 
-**Resolution:** _pending_
+**Resolution:** Fixed in commit `8ad52e8` (2026-05-26). Implementation matches the suggested fix exactly: captured the setTimeout id in `openTimeoutId` and clear it in onDestroy. removeEventListener calls retained as belt-and-braces for the case where the timeout did fire and the listener was attached.
 
 ---
 
@@ -666,7 +666,7 @@ Update to actual values. Consider adding contact email of choice (or remove the 
 ### INV-015: Dead assertion `memory_usage >= 0` on `u64` type
 
 - **Severity**: LOW
-- **Status**: Open
+- **Status**: Fixed (14b55c7)
 - **Files**: `tests/test_system.rs:138`
 - **Hub ID**: #438
 
@@ -679,7 +679,7 @@ Dead code. Clutters the test with a check that proves nothing.
 **Suggested fix:**
 Remove the line, or replace with a meaningful bound — e.g. `assert!(proc.memory_usage < u64::MAX / 2)` (sanity ceiling).
 
-**Resolution:** _pending_
+**Resolution:** Fixed in commit `14b55c7` (2026-05-26). Removed the line; replaced with a comment explaining the tautology. Surrounding assertions (name, cpu, pids) still meaningfully validate the aggregated struct.
 
 ---
 
@@ -937,3 +937,4 @@ Confirmed during investigation as either already-fixed or false positives. Recor
 | 2026-05-26 | **AREA-1 fully resolved (4/4 findings, 3 fixed + 1 won't-fix)**. Spec decisions: API stable on v2.x (no breaking changes); keep `String` error type for now (defer richer errors to a future API-evolution task); INV-020 closed as premature optimization. Commits: INV-002 `b0ce027`, INV-017 `62f8bf6`, INV-018 `b1862ad`. Library now refuses PID 0/1, network rates are stable post-refresh, `network_info` is a single-source-of-truth wrapper. Hub: 8 resolved, 0 in progress, 15 open. | Claude |
 | 2026-05-26 | **AREA-2 fully resolved (4/4 findings)**. Spec decisions: 250ms tick granularity for background thread; dual Rust+Svelte check for tray pause; lazy create_dir_all with defense-in-depth re-canonicalize for export. Commits: INV-005 `ee2df3b`, INV-006 `1a8dea0`, INV-008 `59011f2`, INV-021 `c209a57`. Background thread responds to interval/pause changes within ~250ms; mutex poisoning surfaces in the ErrorBanner; tray popup respects global pause via new paused-changed event; export to new subdirectories under home now works. Hub: 13 resolved, 0 in progress, 10 open. | Claude |
 | 2026-05-26 | **Phase 4 fully resolved: AREA-4 (2/2) + AREA-5 (4/4) = 6 findings**. Spec decisions: kill-all-PIDs behavior change for INV-011 (user-approved); correct memory breakdown formula `cached = available - free, app = total - available` for INV-009 (spec note's identity was wrong, corrected during implementation); throttle removed entirely for INV-013; store immutability scoped to history stores for INV-019. Commits: INV-010 `aeca67f`, INV-011 `c6f9dec`, INV-009 `acccb7e`, INV-013 `d01a75e`, INV-016 `74e1a1b`, INV-019 `5e6c89f`. Process row details refresh on PID change; multi-instance kill respects aggregation; memory breakdown bar is mathematically correct; chart updates every tick; disk/network reordering preserves DOM nodes; history stores are immutable. Hub: 19 resolved, 0 in progress, 4 open. | Claude |
+| 2026-05-26 | **🎉 INVESTIGATION CLOSED. AREA-6 fully resolved (4/4). All 23 findings now closed: 22 fixed + 1 won't-fix (INV-020).** Commits: INV-015 `14b55c7`, INV-012 `8ad52e8`, INV-007 `ddcc896`, INV-004 `302e067`. Dead u64 assertion removed; ContextMenu listener leak fixed; @tauri-apps/plugin-fs npm dep removed; AppConfig refactored to expose load_from/save_to and test_config_save_and_load uses tempfile (no more user config pollution). Hub: 23 resolved, 0 in progress, 0 open. | Claude |
