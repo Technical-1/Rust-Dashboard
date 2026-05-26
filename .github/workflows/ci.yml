@@ -59,13 +59,12 @@ jobs:
         run: cd ui && npm ci
 
       - name: Audit Rust dependencies
-        continue-on-error: true
         run: |
           cargo install cargo-audit --locked || true
           cargo audit
 
       - name: Audit npm dependencies
-        run: cd ui && npm audit --audit-level=moderate || true
+        run: cd ui && npm audit --audit-level=moderate
 
       - name: Build frontend
         run: cd ui && npm run build
