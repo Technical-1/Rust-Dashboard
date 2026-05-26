@@ -135,7 +135,8 @@ fn test_combined_process_list_aggregation() {
     for proc in processes {
         assert!(!proc.name.is_empty());
         assert!(proc.cpu_usage >= 0.0);
-        assert!(proc.memory_usage >= 0);
+        // `memory_usage` is u64; the original `>= 0` assertion was a
+        // tautology that clippy flags under absurd_extreme_comparisons.
         assert!(!proc.pids.is_empty());
     }
 }
