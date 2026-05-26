@@ -25,5 +25,20 @@
     "security": {
       "csp": "default-src 'self' tauri: asset:; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data: blob: asset:; connect-src ipc: http://ipc.localhost"
     }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico",
+      "icons/icon.png"
+    ],
+    "category": "DeveloperTool",
+    "shortDescription": "System monitoring dashboard built with Rust and Tauri",
+    "longDescription": "A native cross-platform system monitoring dashboard with real-time CPU, memory, disk, and network monitoring, process management, detachable panels, and a menu bar tray popup."
   }
 }
