@@ -14,6 +14,11 @@ use tauri::{Emitter, Listener, Manager, WebviewUrl, WebviewWindowBuilder, Window
 const HISTORY_CAPACITY: usize = 300;
 const TRAY_POPUP_WIDTH: f64 = 340.0;
 const TRAY_POPUP_HEIGHT: f64 = 480.0;
+/// Background-thread sleep granularity. The loop sleeps in TICK-sized
+/// chunks and re-reads `refresh_interval` and `paused` between each chunk,
+/// so changes to either setting take effect within one tick instead of at
+/// the end of the configured interval (which could be up to 60 s).
+const TICK: std::time::Duration = std::time::Duration::from_millis(250);
 
 // --- Response structs for frontend consumption ---
 
@@ -429,8 +434,9 @@ fn main() {
             std::thread::spawn(move || {
                 loop {
                     let interval_secs = refresh_interval.load(Ordering::Acquire);
+                    let was_paused = paused.load(Ordering::Acquire);
 
-                    if !paused.load(Ordering::Acquire) {
+                    if !was_paused {
                         let snapshot = {
                             let mut mon = monitor.lock().unwrap_or_else(|e| {
                                 log::warn!("Monitor mutex was poisoned, recovering: {}", e);
@@ -462,7 +468,22 @@ fn main() {
                         let _ = bg_handle.emit("system-update", &snapshot);
                     }
 
-                    std::thread::sleep(std::time::Duration::from_secs(interval_secs as u64));
+                    // Sleep in TICK-sized chunks instead of one long sleep,
+                    // so a change to refresh_interval or paused takes effect
+                    // within one tick (~250 ms) rather than at the end of
+                    // the configured interval (up to 60 s).
+                    let target = std::time::Duration::from_secs(interval_secs as u64);
+                    let mut waited = std::time::Duration::ZERO;
+                    while waited < target {
+                        std::thread::sleep(TICK);
+                        waited += TICK;
+                        if refresh_interval.load(Ordering::Acquire) != interval_secs {
+                            break;
+                        }
+                        if paused.load(Ordering::Acquire) != was_paused {
+                            break;
+                        }
+                    }
                 }
             });
 
