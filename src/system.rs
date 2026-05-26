@@ -225,18 +225,13 @@ impl SystemMonitor {
     /// }
     /// ```
     pub fn network_info(&self) -> Vec<(String, u64, u64)> {
-        let mut out = Vec::new();
-        for (iface, data) in self.networks.iter() {
-            let usage = data.total_received() + data.total_transmitted();
-            if usage > 0 {
-                out.push((
-                    iface.clone(),
-                    data.total_received(),
-                    data.total_transmitted(),
-                ));
-            }
-        }
-        out
+        // Thin wrapper over `network_info_with_rates` — drops the rate
+        // fields. Keeps the v2.x API stable for library consumers while
+        // eliminating the duplicated iteration logic.
+        self.network_info_with_rates()
+            .into_iter()
+            .map(|(iface, rx, tx, _rx_rate, _tx_rate)| (iface, rx, tx))
+            .collect()
     }
 
     /// Get network interface information with throughput rates.
