@@ -6,6 +6,8 @@
 	export let items: { label: string; action: () => void }[] = [];
 	export let onClose: () => void = () => {};
 
+	let openTimeoutId: ReturnType<typeof setTimeout> | undefined;
+
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape') onClose();
 	}
@@ -16,11 +18,22 @@
 
 	onMount(() => {
 		window.addEventListener('keydown', handleKeydown);
-		// Delay to avoid closing immediately from the triggering right-click
-		setTimeout(() => window.addEventListener('click', handleClickOutside), 10);
+		// Delay to avoid closing immediately from the triggering right-click.
+		// Track the timeout id so a rapid unmount (before the 10ms elapses)
+		// can cancel it -- otherwise the click listener attaches after
+		// onDestroy has run, leaking and potentially calling onClose on
+		// a destroyed component.
+		openTimeoutId = setTimeout(
+			() => window.addEventListener('click', handleClickOutside),
+			10
+		);
 	});
 
 	onDestroy(() => {
+		if (openTimeoutId !== undefined) {
+			clearTimeout(openTimeoutId);
+			openTimeoutId = undefined;
+		}
 		window.removeEventListener('keydown', handleKeydown);
 		window.removeEventListener('click', handleClickOutside);
 	});
