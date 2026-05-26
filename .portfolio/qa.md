@@ -73,6 +73,12 @@ Export system snapshots to JSON or CSV. Includes path traversal prevention (cano
 
 The UI uses a custom glassmorphism design system with CSS custom properties (design tokens) for consistent styling. Semi-transparent panels with blur effects, glass borders, and color-coded status indicators create a modern, native-feeling interface without any CSS framework dependency.
 
+### Challenge: Responsive Controls Under Long Refresh Intervals
+
+**Problem:** The dashboard supports a 1–60 s refresh interval, surfaced through a TopBar dropdown. With a single `thread::sleep(interval_secs)` at the bottom of the monitoring loop, a user changing the interval from 60 s to 1 s — or toggling pause — would see no observable effect until the current sleep finished. Up to a full minute of UI lag.
+
+**Solution:** The background thread sleeps in 250 ms `TICK` chunks instead. Between chunks it re-reads the `refresh_interval` and `paused` atomics; if either changed, the inner sleep breaks and the outer loop re-evaluates state from the top. The TopBar's pause toggle invokes `set_paused`, which emits a `paused-changed` event so other windows (notably the tray popup, which has its own Svelte runtime) update their local state too. Worst-case latency for either signal: ~250 ms; idle CPU cost: one syscall per quarter-second.
+
 ## Engineering Decisions
 
 ### Tauri v2 over Electron or pure-Rust GUI
@@ -99,6 +105,12 @@ The UI uses a custom glassmorphism design system with CSS custom properties (des
 - **Choice**: Destroy on dismiss, recreate from scratch on each tray click, recomputing the target monitor and scale factor every time.
 - **Why**: Show/hide preserves stale positioning state that's surprisingly hard to reset cleanly across Tauri/macOS interactions. Recreating is cheap (small SvelteKit bundle) and guarantees correct placement.
 
+### Aggregate-by-name kill semantics
+- **Constraint**: The process table aggregates by name to match how users think about apps (one "Chrome" row that summarizes 30 helper PIDs, not 30 separate rows). That aggregation made the kill flow ambiguous — clicking Terminate on the row implied terminating the app, but the underlying command takes a single PID.
+- **Options**: Render one row per PID (matching macOS Activity Monitor), keep aggregation and only kill `pids[0]`, or keep aggregation and kill every PID under the row.
+- **Choice**: Aggregate AND kill them all. The confirm dialog shows the instance count, the dispatch iterates sequentially, and the event payload reports per-PID success/failure.
+- **Why**: Aggregation makes the table scannable for users with many helper-PID apps open. But the prior behavior — killing only `pids[0]` — was confusing in practice: users clicked Terminate, the row stayed, they clicked again, and so on. Committing to "the row IS the process" keeps the table internally consistent.
+
 ## Frequently Asked Questions
 
 ### Q: Why Tauri v2 instead of Electron?
@@ -119,7 +131,11 @@ sysinfo reports CPU usage as the percentage of one core. On a 4-core system, a p
 
 ### Q: How does the process kill safety work?
 
-Three layers: (1) PID guard rejects PID 0 and 1 in the Tauri command, (2) confirmation dialog in the UI requires explicit user approval, (3) split Tauri capabilities mean detached panels don't have kill permissions at all.
+Four layers: (1) the public library method `SystemMonitor::kill_process` refuses PID 0 and 1, (2) the Tauri command wrapper re-checks as defense in depth, (3) the UI requires explicit user approval through `KillConfirmDialog`, (4) split Tauri capabilities mean detached panels don't have kill permissions at all — only the main window does.
+
+### Q: What happens when I kill a process that has multiple instances?
+
+The process table aggregates by name (like Activity Monitor), so a row labeled "Chrome" can correspond to 30+ helper PIDs. The kill flow honors the aggregation: the confirm dialog shows the instance count ("Terminate All Instances?"), and `KillConfirmDialog.handleKill` iterates `kill_process` sequentially over every PID. Per-PID failures (e.g. permission denied on a privileged child) are logged without aborting the rest of the batch; the dispatched `killed` event carries both the success count and the failure count.
 
 ### Q: Can I use SystemMonitor as a library?
 
@@ -127,7 +143,7 @@ Yes. The `rust_dashboard_lib` crate exposes `SystemMonitor`, `AppConfig`, and `D
 
 ### Q: What's the test coverage?
 
-40 tests covering system monitoring (unit + doc-tests), configuration persistence, export functionality (JSON + CSV), and process actions. Tests only cover the library crate: `cargo test -p rust_dashboard_lib`.
+43 tests in the library crate: 21 in `tests/test_system.rs` (system metrics, mutex/concurrency, invariants), 5 in `tests/test_config.rs` (TOML round-trip with `tempfile` isolation), 4 in `tests/test_process_actions.rs` (kill safety, lookup edge cases), 3 in `tests/test_export.rs` (serialization formats), plus 10 doctests embedded in `src/system.rs`. Run with `cargo test -p rust_dashboard_lib`.
 
 ### Q: How do I build for production?
 

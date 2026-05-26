@@ -42,6 +42,9 @@ I chose Tauri v2 because:
 | **thiserror** | 1.0 | Derive macro for custom error types |
 | **log** + **env_logger** | 0.4 / 0.11 | Structured logging with runtime-configurable levels |
 
+**Dev dependencies:**
+- **tempfile** 3.x — isolated filesystem scratch space for config I/O tests; lets `AppConfig::save_to`/`load_from` exercise real disk paths without touching the user's platform config directory.
+
 I chose sysinfo because:
 - Single crate for all system metrics
 - Cross-platform (Windows, macOS, Linux)
@@ -57,7 +60,6 @@ I chose sysinfo because:
 | **@tauri-apps/api** | ^2.0.0 | IPC invoke/listen from frontend |
 | **@tauri-apps/plugin-dialog** | ^2.0.0 | File save dialog bindings |
 | **@tauri-apps/plugin-os** | ^2.0.0 | OS detection bindings |
-| **@tauri-apps/plugin-fs** | ^2.0.0 | File system access bindings |
 | **chart.js** | ^4.4.0 | Time-series charts for CPU/memory history |
 | **vite** | ^6.0.0 | Dev server with HMR + production bundler |
 | **typescript** | ^5.0.0 | Type safety across the frontend |
@@ -99,11 +101,10 @@ opt-level = 1        # Some optimization for usable dev experience
 
 | Workflow | Platforms | Purpose |
 |----------|-----------|---------|
-| **ci.yml** | ubuntu, macos, windows | Test, lint (clippy), format check, `cargo audit`, `npm audit` |
-| **release.yml** | ubuntu, macos, windows | Build native installers (.app, .msi, .deb/.AppImage) |
-| **rust.yml** | ubuntu, macos, windows | Library-only test matrix |
+| **ci.yml** | ubuntu, macos, windows | Test, lint (clippy), format check, `cargo audit`, `npm audit --audit-level=moderate` (no bypass flags) |
+| **release.yml** | ubuntu, macos, windows | Build native installers (.app/.dmg, .msi, .deb/.rpm/.AppImage) |
 
-All workflows pin GitHub Actions to immutable commit SHAs for supply chain security.
+Both workflows pin GitHub Actions to immutable commit SHAs and opt JS-runtime actions into Node 24 via `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24` ahead of GitHub's deprecation deadline.
 
 ### Platform Dependencies
 

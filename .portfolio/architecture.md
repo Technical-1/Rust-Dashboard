@@ -171,9 +171,13 @@ Tray popup positioning uses `available_monitors()` to find the monitor containin
 
 ### 6. Event Broadcasting to All Windows
 
-The background thread emits `"system-update"` events via `app_handle.emit()`, which broadcasts to all windows simultaneously. Each window's Svelte stores listen independently.
+Three distinct broadcast channels keep every window — main, detached panels, and tray popup — in sync via `app_handle.emit()`:
 
-**Why this matters:** Detached panels and the main window all stay in sync without additional IPC calls. No per-window polling or state synchronization code needed.
+- `system-update` carries the periodic `SystemSnapshot` from the background thread.
+- `paused-changed` propagates pause-toggle state across windows. Each Tauri webview has its own Svelte runtime, so the main window's `paused` store doesn't otherwise reach the tray popup — the event closes that gap.
+- `system-error` surfaces backend recovery events (e.g. recovered mutex poisoning) to the existing `ErrorBanner` component; the next successful `system-update` auto-clears the banner.
+
+**Why this matters:** One Rust source of truth, one emit per state change, every window reacts. Detached windows opened later subscribe to the live event stream and stay in sync without additional code.
 
 ### 7. Configuration Persistence via TOML
 
@@ -186,3 +190,9 @@ Settings (refresh interval, theme) persist to `~/.config/rust-dashboard/config.t
 Permissions are split between the main window and detached panels via Tauri's capability system. The main window gets full access (dialog, process kill), while panels get read-only system data access.
 
 **Why this matters:** Principle of least privilege. A detached CPU panel doesn't need process kill permissions.
+
+### 9. Tick-Based Background Thread
+
+The monitoring loop sleeps in 250 ms `TICK` chunks instead of one long `thread::sleep(interval_secs)`. Between chunks it re-reads the `refresh_interval` and `paused` atomics and bails out of the inner sleep loop on any change.
+
+**Why this matters:** The dashboard supports refresh intervals up to 60 seconds. With a single long sleep, toggling pause or changing the slider would have no observable effect until the next wake — up to a full minute later. The tick loop drops the worst-case latency to ~250 ms while costing one syscall per quarter-second of idle time. Pairs naturally with the `paused-changed` broadcast: a toggle in any window updates the atomic, the next tick observes the change, and the thread exits its sleep immediately.

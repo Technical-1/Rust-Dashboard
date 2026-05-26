@@ -25,7 +25,7 @@ A native cross-platform system monitoring dashboard built with Rust and [Tauri v
 ### Prerequisites
 
 - Rust 1.70+ (2021 edition)
-- Node.js 20+
+- Node.js 24+
 - npm
 
 ### Installation
@@ -99,14 +99,14 @@ let processes = monitor.combined_process_list();
 
 ## Security
 
-All 19 production readiness issues have been resolved. See [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md) for the full audit. Key security measures:
+Defenses are layered across the IPC boundary, the filesystem boundary, and the dependency supply chain:
 
-- Path traversal prevention via canonical path allowlisting
-- Split Tauri capabilities (main window vs panels)
-- CSP with explicit Tauri protocol origins
-- PID guard on process kill (rejects PID 0/1)
-- CI security scanning (`cargo audit` + `npm audit`)
-- GitHub Actions pinned to immutable commit SHAs
+- **Path traversal prevention** — File exports walk up to the deepest existing path ancestor, canonicalize it, verify it lies under the user's home directory, then create any missing intermediate directories with a defense-in-depth re-canonicalize that catches lexical `..` escapes after `create_dir_all`.
+- **PID guard at both layers** — `SystemMonitor::kill_process` in the library and the Tauri command wrapper both refuse PID 0 and PID 1, so neither a misbehaving frontend nor a third-party library consumer can request termination of the kernel or init.
+- **Split Tauri capabilities** — Detached panels and the tray popup get a separate capability set without `create-webview-window` or process-kill permissions; only the main window can spawn new windows or terminate processes.
+- **Strict CSP** — `default-src 'self' tauri: asset:; script-src 'self'; ...` with explicit Tauri-protocol origins on the IPC bridge and no `unsafe-inline` scripts.
+- **CSV formula-injection guard** — Export quotes every field and prefixes `=`, `+`, `-`, `@`, `\t`, `\r` with a single quote so the value can't be reinterpreted as a formula on import.
+- **CI security gates** — `cargo audit` and `npm audit --audit-level=moderate` must both exit 0 with no bypass flags. GitHub Actions pinned to immutable commit SHAs.
 
 ## License
 
