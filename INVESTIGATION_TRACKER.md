@@ -269,10 +269,10 @@ Lowest risk, smallest review burden. Batch into a single PR at the end.
 | INV-002 | Library `SystemMonitor::kill_process` lacks PID guard | AREA-1 | HIGH | Fixed | #425 |
 | INV-003 | `tauri.conf.json` missing `bundle` section breaks local builds | AREA-3 | HIGH | Fixed | #426 |
 | INV-004 | `test_config_save_and_load` pollutes real user config dir | AREA-6 | MEDIUM | Open | #427 |
-| INV-005 | Background thread sleep up to 60s delays interval/pause changes | AREA-2 | MEDIUM | Open | #428 |
-| INV-006 | Mutex poisoning recovery never emits user-visible error | AREA-2 | MEDIUM | Open | #429 |
+| INV-005 | Background thread sleep up to 60s delays interval/pause changes | AREA-2 | MEDIUM | Fixed | #428 |
+| INV-006 | Mutex poisoning recovery never emits user-visible error | AREA-2 | MEDIUM | Fixed | #429 |
 | INV-007 | Unused `@tauri-apps/plugin-fs` npm dep left after H2 fix | AREA-6 | MEDIUM | Open | #430 |
-| INV-008 | TrayPopup ignores global `paused` state | AREA-2 | MEDIUM | Open | #431 |
+| INV-008 | TrayPopup ignores global `paused` state | AREA-2 | MEDIUM | Fixed | #431 |
 | INV-009 | `MemoryPanel` App/Cached breakdown math is incorrect | AREA-5 | MEDIUM | Open | #432 |
 | INV-010 | `ProcessRow` keeps stale details after `process.pids[0]` changes | AREA-4 | MEDIUM | Open | #433 |
 | INV-011 | Kill button only terminates first PID of multi-instance process | AREA-4 | MEDIUM | Open | #434 |
@@ -285,7 +285,7 @@ Lowest risk, smallest review burden. Batch into a single PR at the end.
 | INV-018 | Unused legacy `network_info()` duplicates `network_info_with_rates` | AREA-1 | LOW | Fixed | #441 |
 | INV-019 | `cpuHistory` / `memoryHistory` updates mutate same array reference | AREA-5 | LOW | Open | #442 |
 | INV-020 | `combined_process_list().to_vec()` clones full list every snapshot | AREA-1 | LOW | Won't Fix | #443 |
-| INV-021 | `export_to_file` fails when target parent dir doesn't exist | AREA-2 | LOW | Open | #444 |
+| INV-021 | `export_to_file` fails when target parent dir doesn't exist | AREA-2 | LOW | Fixed | #444 |
 | INV-022 | Main window has no explicit `label` in `tauri.conf.json` | AREA-3 | LOW | Fixed | #445 |
 | INV-023 | Remediate current dependency CVEs (1 Rust + 8 npm) — discovered during INV-001 | AREA-3 | HIGH | Fixed | #469 |
 
@@ -394,7 +394,7 @@ Refactor `AppConfig::save`/`load` to accept an explicit path parameter (existing
 ### INV-005: Background thread sleep up to 60s delays interval/pause changes
 
 - **Severity**: MEDIUM
-- **Status**: Open
+- **Status**: Fixed (ee2df3b)
 - **Files**: `src-tauri/src/main.rs:429-466`
 - **Hub ID**: #428
 
@@ -417,14 +417,14 @@ while elapsed < Duration::from_secs(interval_secs as u64) {
 ```
 Re-read `interval_secs` at the top of every outer iteration (already done).
 
-**Resolution:** _pending_
+**Resolution:** Fixed in commit `ee2df3b` (2026-05-26). Added module-level `TICK = 250ms` constant. Background thread now sleeps in TICK-sized chunks and re-reads both `refresh_interval` and `paused` atomics between chunks, bailing out of the inner sleep loop on any change. Worst-case latency for either signal to take effect: ~250ms (was up to 60s).
 
 ---
 
 ### INV-006: Mutex poisoning recovery never emits user-visible error
 
 - **Severity**: MEDIUM
-- **Status**: Open
+- **Status**: Fixed (1a8dea0)
 - **Files**: `src-tauri/src/main.rs:435-438`, `ui/src/lib/stores/system.ts:10`, `ui/src/lib/components/ErrorBanner.svelte`
 - **Related**: PRODUCTION_READINESS M1 (marked Fixed)
 - **Hub ID**: #429
@@ -442,7 +442,7 @@ let _ = bg_handle.emit("system-error", "Monitor recovered from internal error");
 ```
 Add a frontend listener in `stores/system.ts` for the `system-error` event that sets the `systemError` store.
 
-**Resolution:** _pending_
+**Resolution:** Fixed in commit `1a8dea0` (2026-05-26). Backend emits the `system-error` event inside the unwrap_or_else closure, guarded by a `poison_alerted` flag declared at thread spawn (avoids banner flicker since `std::sync::Mutex` has no stable API to clear poison once set). Frontend listens for the event in `stores/system.ts` and sets `systemError`; the existing system-update handler auto-clears it on the next healthy refresh.
 
 ---
 
@@ -473,7 +473,7 @@ Then commit the updated `package.json` and `package-lock.json`.
 ### INV-008: TrayPopup ignores global `paused` state
 
 - **Severity**: MEDIUM
-- **Status**: Open
+- **Status**: Fixed (59011f2)
 - **Files**: `ui/src/lib/components/TrayPopup.svelte:18-29`, `src-tauri/src/main.rs:211-215`
 - **Hub ID**: #431
 
@@ -490,7 +490,7 @@ Two options:
 
 Option 1 is more authoritative (single source of truth in Rust) but requires building a snapshot without refresh — which is already what `get_system_snapshot` does. Could just have `tray_refresh` delegate to `get_system_snapshot` when paused.
 
-**Resolution:** _pending_
+**Resolution:** Fixed in commit `59011f2` (2026-05-26). Dual approach landed: backend `tray_refresh` skips `monitor.refresh()` when the paused atomic is true (returns cached snapshot, shorter mutex hold time); `set_paused` emits a new `paused-changed` event so all windows learn about toggles (each Tauri webview has its own Svelte runtime, so the main window's `paused` store doesn't otherwise propagate). TrayPopup tracks `pausedLocal` from the event and skips the IPC call entirely when paused.
 
 ---
 
@@ -804,7 +804,7 @@ Have `SystemMonitor` cache a serialized snapshot alongside `cached_processes`, o
 ### INV-021: `export_to_file` fails when target parent dir doesn't exist
 
 - **Severity**: LOW
-- **Status**: Open
+- **Status**: Fixed (c209a57)
 - **Files**: `src-tauri/src/main.rs:231-233`
 - **Hub ID**: #444
 
@@ -817,7 +817,7 @@ Minor UX papercut. The save dialog on most platforms allows typing new paths.
 **Suggested fix:**
 Walk up the path until we find an existing ancestor, canonicalize *that*, then check the canonical ancestor is under `home_dir`. Or `fs::create_dir_all(parent)` first (only if under home_dir already by lexical check), then canonicalize.
 
-**Resolution:** _pending_
+**Resolution:** Fixed in commit `c209a57` (2026-05-26). 5-step flow: (1) walk up to the deepest existing ancestor; (2) canonicalize and security-check it is under home (catches symlink escapes); (3) `create_dir_all` the requested parent — only creates real dirs (no symlinks), so new components inherit the ancestor's safety; (4) defense-in-depth re-canonicalize the parent after creation to catch lexical `..` traversal that the first check missed; (5) write to the canonical_parent.join(file_name) path.
 
 ---
 
@@ -935,3 +935,4 @@ Confirmed during investigation as either already-fixed or false positives. Recor
 | 2026-05-26 | Started AREA-3 with INV-001. Pre-validation discovered 9 hidden CVEs (1 Rust + 8 npm) that the bypass had been masking. Created INV-023 (#469) as a blocker for INV-001. INV-023 implementation complete (cargo update -p bytes; npm audit fix): all validations green. INV-001 implementation complete (CI yaml bypasses removed): both audits exit 0 with the new config. Both tasks in_progress in Hub, awaiting commit. | Claude |
 | 2026-05-26 | **AREA-3 fully resolved (5/5 findings)**. Commits: INV-023 `c987db5`, INV-001 `5a40357`, INV-003 `f53fdfc`, INV-022 `de724ef`, INV-014 `c812ad3`. CI now enforces audits; local `cargo tauri build` produces installers without --config overrides; Cargo metadata accurate; window label explicit. Hub: 5 resolved, 0 in progress, 18 open. | Claude |
 | 2026-05-26 | **AREA-1 fully resolved (4/4 findings, 3 fixed + 1 won't-fix)**. Spec decisions: API stable on v2.x (no breaking changes); keep `String` error type for now (defer richer errors to a future API-evolution task); INV-020 closed as premature optimization. Commits: INV-002 `b0ce027`, INV-017 `62f8bf6`, INV-018 `b1862ad`. Library now refuses PID 0/1, network rates are stable post-refresh, `network_info` is a single-source-of-truth wrapper. Hub: 8 resolved, 0 in progress, 15 open. | Claude |
+| 2026-05-26 | **AREA-2 fully resolved (4/4 findings)**. Spec decisions: 250ms tick granularity for background thread; dual Rust+Svelte check for tray pause; lazy create_dir_all with defense-in-depth re-canonicalize for export. Commits: INV-005 `ee2df3b`, INV-006 `1a8dea0`, INV-008 `59011f2`, INV-021 `c209a57`. Background thread responds to interval/pause changes within ~250ms; mutex poisoning surfaces in the ErrorBanner; tray popup respects global pause via new paused-changed event; export to new subdirectories under home now works. Hub: 13 resolved, 0 in progress, 10 open. | Claude |
