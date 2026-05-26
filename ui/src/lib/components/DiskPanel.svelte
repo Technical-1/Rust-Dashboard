@@ -41,7 +41,7 @@
 		</div>
 	{:else}
 		<div class="disk-list">
-			{#each disks as disk}
+			{#each disks as disk (disk.mount_point)}
 				{@const percent = disk.total > 0 ? (disk.used / disk.total) * 100 : 0}
 				<div class="disk-item">
 					<div class="disk-header">

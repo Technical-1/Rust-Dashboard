@@ -39,7 +39,7 @@
 		</div>
 	{:else}
 		<div class="network-list">
-			{#each networks as net}
+			{#each networks as net (net.interface)}
 				<div class="net-item">
 					<span class="net-name">{net.interface}</span>
 					<div class="net-stats">
