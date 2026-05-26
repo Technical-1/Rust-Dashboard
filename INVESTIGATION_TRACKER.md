@@ -273,17 +273,17 @@ Lowest risk, smallest review burden. Batch into a single PR at the end.
 | INV-006 | Mutex poisoning recovery never emits user-visible error | AREA-2 | MEDIUM | Fixed | #429 |
 | INV-007 | Unused `@tauri-apps/plugin-fs` npm dep left after H2 fix | AREA-6 | MEDIUM | Open | #430 |
 | INV-008 | TrayPopup ignores global `paused` state | AREA-2 | MEDIUM | Fixed | #431 |
-| INV-009 | `MemoryPanel` App/Cached breakdown math is incorrect | AREA-5 | MEDIUM | Open | #432 |
-| INV-010 | `ProcessRow` keeps stale details after `process.pids[0]` changes | AREA-4 | MEDIUM | Open | #433 |
-| INV-011 | Kill button only terminates first PID of multi-instance process | AREA-4 | MEDIUM | Open | #434 |
+| INV-009 | `MemoryPanel` App/Cached breakdown math is incorrect | AREA-5 | MEDIUM | Fixed | #432 |
+| INV-010 | `ProcessRow` keeps stale details after `process.pids[0]` changes | AREA-4 | MEDIUM | Fixed | #433 |
+| INV-011 | Kill button only terminates first PID of multi-instance process | AREA-4 | MEDIUM | Fixed | #434 |
 | INV-012 | `ContextMenu` can leak click listener if unmounted within 10ms | AREA-6 | LOW | Open | #435 |
-| INV-013 | `HistoryChart` throttle drops alternating updates at 1s interval | AREA-5 | LOW | Open | #436 |
+| INV-013 | `HistoryChart` throttle drops alternating updates at 1s interval | AREA-5 | LOW | Fixed | #436 |
 | INV-014 | Stale placeholder author/repository fields in `Cargo.toml` | AREA-3 | LOW | Fixed | #437 |
 | INV-015 | Dead assertion `memory_usage >= 0` on `u64` type | AREA-6 | LOW | Open | #438 |
-| INV-016 | `DiskPanel` and `NetworkPanel` `{#each}` blocks lack keys | AREA-5 | LOW | Open | #439 |
+| INV-016 | `DiskPanel` and `NetworkPanel` `{#each}` blocks lack keys | AREA-5 | LOW | Fixed | #439 |
 | INV-017 | `network_info_with_rates` rates inflate immediately post-refresh | AREA-1 | LOW | Fixed | #440 |
 | INV-018 | Unused legacy `network_info()` duplicates `network_info_with_rates` | AREA-1 | LOW | Fixed | #441 |
-| INV-019 | `cpuHistory` / `memoryHistory` updates mutate same array reference | AREA-5 | LOW | Open | #442 |
+| INV-019 | `cpuHistory` / `memoryHistory` updates mutate same array reference | AREA-5 | LOW | Fixed | #442 |
 | INV-020 | `combined_process_list().to_vec()` clones full list every snapshot | AREA-1 | LOW | Won't Fix | #443 |
 | INV-021 | `export_to_file` fails when target parent dir doesn't exist | AREA-2 | LOW | Fixed | #444 |
 | INV-022 | Main window has no explicit `label` in `tauri.conf.json` | AREA-3 | LOW | Fixed | #445 |
@@ -497,7 +497,7 @@ Option 1 is more authoritative (single source of truth in Rust) but requires bui
 ### INV-009: `MemoryPanel` App/Cached breakdown math is incorrect
 
 - **Severity**: MEDIUM
-- **Status**: Open
+- **Status**: Fixed (acccb7e)
 - **Files**: `ui/src/lib/components/MemoryPanel.svelte:22-26`
 - **Hub ID**: #432
 
@@ -519,14 +519,14 @@ $: appGb = mem ? Math.max(0, totalGb - freeGb - cachedGb) : 0;
 ```
 Note: macOS sysinfo reports `available` ≈ `free + inactive`, which is close enough for this approximation. If higher fidelity is wanted, query OS-specific metrics directly.
 
-**Resolution:** _pending_
+**Resolution:** Fixed in commit `acccb7e` (2026-05-26). During implementation found the spec-suggested identity `cached = total - available - free` was arithmetically wrong (gives total - 2*free - reclaimable on Linux). Used the correct Linux MemAvailable model instead: `cachedGb = max(0, availableGb - freeGb)`, `appGb = max(0, totalGb - availableGb)`. Three segments sum to total; macOS approximation documented in a header comment.
 
 ---
 
 ### INV-010: `ProcessRow` keeps stale details after `process.pids[0]` changes
 
 - **Severity**: MEDIUM
-- **Status**: Open
+- **Status**: Fixed (aeca67f)
 - **Files**: `ui/src/lib/components/ProcessRow.svelte:11-30`, `ui/src/lib/components/ProcessTable.svelte:192`
 - **Hub ID**: #433
 
@@ -548,14 +548,14 @@ $: if (expanded && process.pids[0] !== lastFetchedPid) {
 ```
 Or change the `{#each}` key to `${proc.name}-${proc.pids[0]}` so the row remounts on PID change (simpler but causes flicker).
 
-**Resolution:** _pending_
+**Resolution:** Fixed in commit `aeca67f` (2026-05-26). Added `lastFetchedPid` tracker; reactive statement clears `details` and resets `lastFetchedPid` when `process.pids[0]` no longer matches. `toggleExpand` captures the PID being fetched before the await to avoid recording a stale `lastFetchedPid` if pids[0] changes mid-fetch.
 
 ---
 
 ### INV-011: Kill button only terminates first PID of multi-instance process
 
 - **Severity**: MEDIUM
-- **Status**: Open
+- **Status**: Fixed (c6f9dec)
 - **Files**: `ui/src/lib/components/ProcessRow.svelte:51`, `ui/src/lib/components/KillConfirmDialog.svelte`
 - **Hub ID**: #434
 
@@ -572,7 +572,7 @@ Choose one of:
 
 Option A matches user intuition; Option B sets expectations correctly.
 
-**Resolution:** _pending_
+**Resolution:** Fixed in commit `c6f9dec` (2026-05-26) via Option A. ProcessRow dispatches `pids: number[]` instead of single `pid`; ProcessTable's killTarget and event handler type updated to match; KillConfirmDialog iterates sequentially, collects successCount/failCount, logs per-PID failures via logError. Dialog title adapts: "Terminate Process?" for N=1, "Terminate All Instances?" for N>1. Body shows "PID X" or "N instances" depending on count.
 
 ---
 
@@ -622,7 +622,7 @@ onDestroy(() => {
 ### INV-013: `HistoryChart` throttle drops alternating updates at 1s interval
 
 - **Severity**: LOW
-- **Status**: Open
+- **Status**: Fixed (d01a75e)
 - **Files**: `ui/src/lib/components/HistoryChart.svelte:83-91`
 - **Hub ID**: #436
 
@@ -635,7 +635,7 @@ At 1s refresh interval the chart updates erratically. Cosmetic, but the throttle
 **Suggested fix:**
 Change to `>=` or lower the threshold to 900ms. Alternatively, remove the throttle entirely — Chart.js's `update('none')` is cheap.
 
-**Resolution:** _pending_
+**Resolution:** Fixed in commit `d01a75e` (2026-05-26). Removed the throttle entirely (and the unused `lastUpdateTime` variable). `chart.update('none')` skips animation and is cheap; at the default 2s interval that's ~30 calls/minute, well within Chart.js's budget.
 
 ---
 
@@ -686,7 +686,7 @@ Remove the line, or replace with a meaningful bound — e.g. `assert!(proc.memor
 ### INV-016: `DiskPanel` and `NetworkPanel` `{#each}` blocks lack keys
 
 - **Severity**: LOW
-- **Status**: Open
+- **Status**: Fixed (74e1a1b)
 - **Files**: `ui/src/lib/components/DiskPanel.svelte:44`, `ui/src/lib/components/NetworkPanel.svelte:42`
 - **Hub ID**: #439
 
@@ -702,7 +702,7 @@ Minor visual glitch. Progress bar widths may animate to wrong values if a disk s
 
 `ProcessTable.svelte:192` already keys by `proc.name` — apply the same pattern here.
 
-**Resolution:** _pending_
+**Resolution:** Fixed in commit `74e1a1b` (2026-05-26). Applied both keys exactly as suggested.
 
 ---
 
@@ -751,7 +751,7 @@ Either:
 ### INV-019: `cpuHistory` / `memoryHistory` updates mutate the same array reference
 
 - **Severity**: LOW
-- **Status**: Open
+- **Status**: Fixed (5e6c89f)
 - **Files**: `ui/src/lib/stores/system.ts:39-52`
 - **Hub ID**: #442
 
@@ -777,7 +777,7 @@ cpuHistory.update((hist) => {
 });
 ```
 
-**Resolution:** _pending_
+**Resolution:** Fixed in commit `5e6c89f` (2026-05-26). Both history-store updaters now build a fresh array via spread and `slice(-300)`. Scoped to history stores only (per AREA-5 spec decision) — other stores only `.set()` scalars where reference-equality isn't a concern.
 
 ---
 
@@ -936,3 +936,4 @@ Confirmed during investigation as either already-fixed or false positives. Recor
 | 2026-05-26 | **AREA-3 fully resolved (5/5 findings)**. Commits: INV-023 `c987db5`, INV-001 `5a40357`, INV-003 `f53fdfc`, INV-022 `de724ef`, INV-014 `c812ad3`. CI now enforces audits; local `cargo tauri build` produces installers without --config overrides; Cargo metadata accurate; window label explicit. Hub: 5 resolved, 0 in progress, 18 open. | Claude |
 | 2026-05-26 | **AREA-1 fully resolved (4/4 findings, 3 fixed + 1 won't-fix)**. Spec decisions: API stable on v2.x (no breaking changes); keep `String` error type for now (defer richer errors to a future API-evolution task); INV-020 closed as premature optimization. Commits: INV-002 `b0ce027`, INV-017 `62f8bf6`, INV-018 `b1862ad`. Library now refuses PID 0/1, network rates are stable post-refresh, `network_info` is a single-source-of-truth wrapper. Hub: 8 resolved, 0 in progress, 15 open. | Claude |
 | 2026-05-26 | **AREA-2 fully resolved (4/4 findings)**. Spec decisions: 250ms tick granularity for background thread; dual Rust+Svelte check for tray pause; lazy create_dir_all with defense-in-depth re-canonicalize for export. Commits: INV-005 `ee2df3b`, INV-006 `1a8dea0`, INV-008 `59011f2`, INV-021 `c209a57`. Background thread responds to interval/pause changes within ~250ms; mutex poisoning surfaces in the ErrorBanner; tray popup respects global pause via new paused-changed event; export to new subdirectories under home now works. Hub: 13 resolved, 0 in progress, 10 open. | Claude |
+| 2026-05-26 | **Phase 4 fully resolved: AREA-4 (2/2) + AREA-5 (4/4) = 6 findings**. Spec decisions: kill-all-PIDs behavior change for INV-011 (user-approved); correct memory breakdown formula `cached = available - free, app = total - available` for INV-009 (spec note's identity was wrong, corrected during implementation); throttle removed entirely for INV-013; store immutability scoped to history stores for INV-019. Commits: INV-010 `aeca67f`, INV-011 `c6f9dec`, INV-009 `acccb7e`, INV-013 `d01a75e`, INV-016 `74e1a1b`, INV-019 `5e6c89f`. Process row details refresh on PID change; multi-instance kill respects aggregation; memory breakdown bar is mathematically correct; chart updates every tick; disk/network reordering preserves DOM nodes; history stores are immutable. Hub: 19 resolved, 0 in progress, 4 open. | Claude |
