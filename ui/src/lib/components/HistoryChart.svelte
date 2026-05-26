@@ -9,7 +9,6 @@
 
 	let canvas: HTMLCanvasElement;
 	let chart: Chart | null = null;
-	let lastUpdateTime = 0;
 
 	Chart.register(...registerables);
 
@@ -81,13 +80,13 @@
 	});
 
 	$: if (chart && data.length > 0 && !document.hidden) {
-		const now = performance.now();
-		if (now - lastUpdateTime > 1000) {
-			lastUpdateTime = now;
-			chart.data.labels = data.map((d) => d[0]);
-			chart.data.datasets[0].data = data.map((d) => d[1]);
-			chart.update('none');
-		}
+		// No throttle — chart.update('none') skips animation and is
+		// cheap. The old `> 1000ms` strict-greater-than guard dropped
+		// alternating updates at the 1s minimum refresh interval due
+		// to timing jitter, causing visible chart stutter.
+		chart.data.labels = data.map((d) => d[0]);
+		chart.data.datasets[0].data = data.map((d) => d[1]);
+		chart.update('none');
 	}
 </script>
 
