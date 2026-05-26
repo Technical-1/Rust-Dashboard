@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: [ main ]
 
+env:
+  # Opt into Node 24 for JS actions whose distributions still ship as
+  # Node 20. Node 20 actions are deprecated and will be forced onto
+  # Node 24 by default starting 2026-06-02; this env var enables the
+  # behavior early so deprecation warnings disappear from CI logs.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   test:
     name: Test
@@ -32,7 +39,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Cache cargo registry
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
@@ -98,7 +105,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Install frontend dependencies
         run: cd ui && npm ci
