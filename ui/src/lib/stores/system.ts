@@ -36,20 +36,23 @@ export async function initSystemListener() {
 			systemSnapshot.set(snapshot);
 			systemError.set(null);
 
-			// Append to histories (cap at 300)
+			// Append to histories (cap at 300). Return a fresh array each
+			// update — mutating and returning the same reference still
+			// notifies subscribers, but breaks any downstream consumer
+			// that uses `===` to detect change (memoization, computed
+			// stores, signal-style integrations).
 			cpuHistory.update((hist) => {
-				const now = performance.now() / 1000;
-				hist.push([now, snapshot.cpu_usage]);
-				if (hist.length > 300) hist.shift();
-				return hist;
+				const next: [number, number][] = [
+					...hist,
+					[performance.now() / 1000, snapshot.cpu_usage]
+				];
+				return next.length > 300 ? next.slice(-300) : next;
 			});
 
 			memoryHistory.update((hist) => {
-				const now = performance.now() / 1000;
 				const usedGb = snapshot.memory.used / 1024 / 1024 / 1024;
-				hist.push([now, usedGb]);
-				if (hist.length > 300) hist.shift();
-				return hist;
+				const next: [number, number][] = [...hist, [performance.now() / 1000, usedGb]];
+				return next.length > 300 ? next.slice(-300) : next;
 			});
 		});
 	} catch (e) {
