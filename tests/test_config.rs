@@ -36,7 +36,10 @@ fn test_config_load_from_missing_returns_default() {
 
     let loaded = AppConfig::load_from(&path);
     let default = AppConfig::default();
-    assert_eq!(loaded.refresh_interval_seconds, default.refresh_interval_seconds);
+    assert_eq!(
+        loaded.refresh_interval_seconds,
+        default.refresh_interval_seconds
+    );
     assert_eq!(loaded.theme, default.theme);
 }
 
