@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
@@ -35,16 +35,24 @@ impl AppConfig {
         Ok(path)
     }
 
+    /// Load from the platform config path. Falls back to `Default` on
+    /// any path-resolution / read / parse error.
     pub fn load() -> Self {
-        let path = match Self::config_path() {
-            Ok(p) => p,
+        match Self::config_path() {
+            Ok(path) => Self::load_from(&path),
             Err(e) => {
                 log::warn!("Config path error, using defaults: {}", e);
-                return Self::default();
+                Self::default()
             }
-        };
+        }
+    }
+
+    /// Load from an explicit path. Falls back to `Default` if the file
+    /// is missing, unreadable, or unparseable. Exposed so tests can
+    /// isolate I/O from the platform config directory.
+    pub fn load_from(path: &Path) -> Self {
         if path.exists() {
-            if let Ok(contents) = fs::read_to_string(&path) {
+            if let Ok(contents) = fs::read_to_string(path) {
                 if let Ok(config) = toml::from_str(&contents) {
                     return config;
                 }
@@ -53,10 +61,17 @@ impl AppConfig {
         Self::default()
     }
 
+    /// Save to the platform config path.
     pub fn save(&self) -> Result<(), Box<dyn std::error::Error>> {
         let path = Self::config_path().map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
+        self.save_to(&path)
+    }
+
+    /// Save to an explicit path. Exposed so tests can write to a
+    /// `tempfile::tempdir` instead of the platform config directory.
+    pub fn save_to(&self, path: &Path) -> Result<(), Box<dyn std::error::Error>> {
         let contents = toml::to_string_pretty(self)?;
-        fs::write(&path, contents)?;
+        fs::write(path, contents)?;
         Ok(())
     }
 }

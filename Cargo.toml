@@ -37,6 +37,11 @@ csv = "1.3"
 toml = "0.8"
 dirs = "5.0"
 
+[dev-dependencies]
+# Used by tests/test_config.rs to isolate config I/O from the real
+# platform config directory.
+tempfile = "3"
+
 # Platform-specific dependencies
 [target.'cfg(windows)'.dependencies]
 # Windows-specific optimization: use native windows features

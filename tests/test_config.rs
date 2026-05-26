@@ -9,21 +9,35 @@ fn test_config_default() {
 
 #[test]
 fn test_config_save_and_load() {
+    // Use a tempdir so we don't touch the real platform config path
+    // and don't race other tests that also call config_path().
+    let dir = tempfile::tempdir().expect("create tempdir");
+    let path = dir.path().join("config.toml");
+
     let mut config = AppConfig::default();
     config.refresh_interval_seconds = 10;
     config.theme = "Light".to_string();
     config.window_width = Some(800.0);
     config.window_height = Some(600.0);
 
-    // Save config
-    assert!(config.save().is_ok());
+    assert!(config.save_to(&path).is_ok());
 
-    // Load config
-    let loaded = AppConfig::load();
+    let loaded = AppConfig::load_from(&path);
     assert_eq!(loaded.refresh_interval_seconds, 10);
     assert_eq!(loaded.theme, "Light");
     assert_eq!(loaded.window_width, Some(800.0));
     assert_eq!(loaded.window_height, Some(600.0));
+}
+
+#[test]
+fn test_config_load_from_missing_returns_default() {
+    let dir = tempfile::tempdir().expect("create tempdir");
+    let path = dir.path().join("does-not-exist.toml");
+
+    let loaded = AppConfig::load_from(&path);
+    let default = AppConfig::default();
+    assert_eq!(loaded.refresh_interval_seconds, default.refresh_interval_seconds);
+    assert_eq!(loaded.theme, default.theme);
 }
 
 #[test]
