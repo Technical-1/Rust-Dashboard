@@ -73,6 +73,32 @@ Export system snapshots to JSON or CSV. Includes path traversal prevention (cano
 
 The UI uses a custom glassmorphism design system with CSS custom properties (design tokens) for consistent styling. Semi-transparent panels with blur effects, glass borders, and color-coded status indicators create a modern, native-feeling interface without any CSS framework dependency.
 
+## Engineering Decisions
+
+### Tauri v2 over Electron or pure-Rust GUI
+- **Constraint**: Wanted a polished, modern UI with Chart.js-quality visualizations, but the system-query layer had to be native (sysinfo) and the binary had to stay small.
+- **Options**: Electron + Node bindings to sysinfo, eframe/egui pure-Rust GUI, or Tauri v2 + SvelteKit.
+- **Choice**: Tauri v2 with a SvelteKit frontend.
+- **Why**: Electron ships its own Chromium (~100MB+ baseline, higher RAM). eframe lacks the design and charting ecosystem I wanted. Tauri reuses the OS's native webview, keeps the Rust core, and ships around ~50MB with the same UI flexibility as Electron.
+
+### Workspace with a reusable library crate
+- **Constraint**: I wanted the system-monitoring logic usable outside the desktop app (CLI tools, scripts, examples).
+- **Options**: Single binary crate that hides everything in `src-tauri/`, or a Cargo workspace exposing a library plus a thin Tauri binary.
+- **Choice**: Workspace — `rust_dashboard_lib` (library) plus `rust-dashboard` (Tauri binary in `src-tauri/`).
+- **Why**: The library compiles and is testable without pulling in Tauri. `examples/basic_usage.rs` demonstrates headless use, and integration tests target the library directly via `cargo test -p rust_dashboard_lib`.
+
+### Single broadcast event over per-window polling
+- **Constraint**: Main window, five detachable panels, and the tray popup all need to display the same data, in sync, without each spawning its own refresh loop.
+- **Options**: Per-window `setInterval` polling, per-window IPC subscriptions, or one background thread broadcasting events.
+- **Choice**: A single Rust background thread that builds a `SystemSnapshot` and broadcasts a `system-update` event to all windows via `app_handle.emit()`.
+- **Why**: One mutex acquisition per tick, one snapshot, one emit. Detached windows opened later subscribe to the same event and immediately stay in sync — no per-window state-synchronization code.
+
+### Close/recreate tray popup instead of show/hide
+- **Constraint**: On multi-monitor setups with mixed DPI (e.g., Retina laptop + external 1x display), a hidden popup retained its old window position and scale factor when shown again.
+- **Options**: Reposition on show, listen for monitor-change events, or destroy and recreate the popup each click.
+- **Choice**: Destroy on dismiss, recreate from scratch on each tray click, recomputing the target monitor and scale factor every time.
+- **Why**: Show/hide preserves stale positioning state that's surprisingly hard to reset cleanly across Tauri/macOS interactions. Recreating is cheap (small SvelteKit bundle) and guarantees correct placement.
+
 ## Frequently Asked Questions
 
 ### Q: Why Tauri v2 instead of Electron?
