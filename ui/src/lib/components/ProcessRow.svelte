@@ -46,8 +46,12 @@
 		}
 	}
 
-	function requestKill(pid: number) {
-		dispatch('kill', { name: process.name, pid });
+	function requestKill() {
+		// Dispatch all PIDs aggregated under this process name. The
+		// confirm dialog and downstream invoke loop will iterate. Single
+		// click previously killed only pids[0], which left N-1 instances
+		// of multi-instance processes running.
+		dispatch('kill', { name: process.name, pids: process.pids });
 	}
 </script>
 
@@ -65,7 +69,7 @@
 		{#if process.pids.length > 0}
 			<button
 				class="kill-btn"
-				on:click|stopPropagation={() => requestKill(process.pids[0])}
+				on:click|stopPropagation={requestKill}
 				title="Terminate {process.name}"
 			>
 				<svg viewBox="0 0 10 10" fill="none">

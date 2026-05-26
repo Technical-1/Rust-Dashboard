@@ -18,7 +18,7 @@
 	export let constrainHeight: boolean = true;
 	export let showDetachButton: boolean = true;
 
-	let killTarget: { name: string; pid: number } | null = null;
+	let killTarget: { name: string; pids: number[] } | null = null;
 
 	$: processes = $systemSnapshot?.processes ?? [];
 
@@ -82,7 +82,7 @@
 		});
 	}
 
-	function handleKillRequest(e: CustomEvent<{ name: string; pid: number }>) {
+	function handleKillRequest(e: CustomEvent<{ name: string; pids: number[] }>) {
 		killTarget = e.detail;
 	}
 
@@ -207,7 +207,7 @@
 	<KillConfirmDialog
 		open={true}
 		processName={killTarget.name}
-		pid={killTarget.pid}
+		pids={killTarget.pids}
 		on:close={handleKillClose}
 	/>
 {/if}

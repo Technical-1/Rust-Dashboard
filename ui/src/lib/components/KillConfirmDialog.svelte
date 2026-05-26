@@ -4,24 +4,33 @@
 	import { logError } from '$lib/log';
 
 	export let processName: string = '';
-	export let pid: number = 0;
+	export let pids: number[] = [];
 	export let open: boolean = false;
 
 	const dispatch = createEventDispatcher();
 	let killing = false;
 
 	async function handleKill() {
+		// Sequentially terminate every PID aggregated under this process
+		// name. Collect successes and failures; the caller gets a summary
+		// in the `killed` event. Sequential (not Promise.all) to avoid
+		// hammering sysinfo's internal state with concurrent kills.
 		killing = true;
-		try {
-			await invoke('kill_process', { pid });
-			dispatch('killed', { pid, name: processName });
-		} catch (e) {
-			logError('Failed to kill process', e);
-		} finally {
-			killing = false;
-			open = false;
-			dispatch('close');
+		let successCount = 0;
+		let failCount = 0;
+		for (const pid of pids) {
+			try {
+				await invoke('kill_process', { pid });
+				successCount++;
+			} catch (e) {
+				logError(`Failed to kill PID ${pid}`, e);
+				failCount++;
+			}
 		}
+		killing = false;
+		open = false;
+		dispatch('killed', { name: processName, successCount, failCount });
+		dispatch('close');
 	}
 
 	function handleCancel() {
@@ -41,10 +50,12 @@
 					<line x1="16" y1="8" x2="8" y2="16" stroke="var(--red)" stroke-width="1.5" stroke-linecap="round"/>
 				</svg>
 			</div>
-			<h3>Terminate Process?</h3>
+			<h3>Terminate {pids.length === 1 ? 'Process' : 'All Instances'}?</h3>
 			<p>
 				<strong>{processName}</strong><br/>
-				<span class="pid-label">PID {pid}</span>
+				<span class="pid-label">
+					{pids.length === 1 ? `PID ${pids[0]}` : `${pids.length} instances`}
+				</span>
 			</p>
 			<div class="actions">
 				<button class="btn btn-cancel" on:click={handleCancel}>Cancel</button>
