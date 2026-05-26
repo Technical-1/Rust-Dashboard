@@ -9,7 +9,19 @@
 
 	const dispatch = createEventDispatcher();
 	let details: ProcessDetails | null = null;
+	let lastFetchedPid: number | null = null;
 	let loadingDetails = false;
+
+	// Reactive invalidation: if the row's first PID changes between
+	// refreshes (a process restarted under the same name — the Chrome
+	// tab-restart pattern), clear the cached details so the next
+	// expansion refetches. The {#each} block in ProcessTable keys on
+	// proc.name, so the component instance is reused even when the
+	// underlying PID changes.
+	$: if (lastFetchedPid !== null && process.pids[0] !== lastFetchedPid) {
+		details = null;
+		lastFetchedPid = null;
+	}
 
 	async function toggleExpand() {
 		expanded = !expanded;
@@ -17,10 +29,15 @@
 
 		if (expanded && !details && process.pids.length > 0) {
 			loadingDetails = true;
+			// Capture the PID we're fetching for so a concurrent refresh
+			// that changes pids[0] mid-await doesn't cause us to record a
+			// stale lastFetchedPid.
+			const fetchPid = process.pids[0];
 			try {
 				details = await invoke<ProcessDetails | null>('get_process_details', {
-					pid: process.pids[0]
+					pid: fetchPid
 				});
+				lastFetchedPid = fetchPid;
 			} catch (e) {
 				logError('Failed to load process details', e);
 			} finally {
